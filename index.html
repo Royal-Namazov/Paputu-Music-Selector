@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>Paputu Music Selector</title>
+
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
   <style>
     body {
       font-family: 'Poppins', sans-serif;
@@ -31,7 +33,6 @@
     #nowPlaying {
       margin-top: 30px;
       font-size: 22px;
-      color: #FFFFFF;
     }
     #timer {
       margin-top: 10px;
@@ -49,12 +50,9 @@
     }
     input[type="range"] {
       width: 200px;
-      -webkit-appearance: none;
       background: transparent;
     }
     input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
       width: 16px;
       height: 16px;
       background: #1DB954;
@@ -67,25 +65,15 @@
       background: #535353;
       border-radius: 2px;
     }
-    input[type="range"]::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
-      background: #1DB954;
-      border: none;
-      border-radius: 50%;
-      cursor: pointer;
-    }
-    input[type="range"]::-moz-range-track {
-      height: 5px;
-      background: #535353;
-      border-radius: 2px;
-    }
   </style>
 </head>
+
 <body>
 
 <h1>🎵 Paputu Music Selector 🎵</h1>
+
 <button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
+
 <p id="nowPlaying"></p>
 <div id="timer">00:00 / 01:00</div>
 
@@ -97,41 +85,65 @@
 <audio id="player" preload="auto" crossorigin="anonymous"></audio>
 
 <script>
-const musicFiles = Array.from({length: 29}, (_, i) => `music/music${i+1}.mp3`);
+const musicFiles = [
+  'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
+  'music/music5.mp3', 'music/music6.mp3', 'music/music7.mp3', 'music/music8.mp3',
+  'music/music9.mp3', 'music/music10.mp3', 'music/music11.mp3', 'music/music12.mp3',
+  'music/music13.mp3', 'music/music14.mp3', 'music/music15.mp3', 'music/music16.mp3',
+  'music/music17.mp3', 'music/music18.mp3', 'music/music19.mp3', 'music/music20.mp3',
+  'music/music21.mp3', 'music/music22.mp3', 'music/music23.mp3', 'music/music24.mp3',
+  'music/music25.mp3', 'music/music26.mp3', 'music/music27.mp3', 'music/music28.mp3',
+  'music/music29.mp3'
+];
 
 const player = document.getElementById('player');
 const nowPlaying = document.getElementById('nowPlaying');
 const timer = document.getElementById('timer');
 const volumeSlider = document.getElementById('volumeSlider');
 
-player.volume = volumeSlider.value;
+let currentMusic = null;
+let segmentStack = [];
+let intervalId = null;
+
 volumeSlider.addEventListener('input', (e) => {
   player.volume = e.target.value;
 });
 
-let musicQueue = [...musicFiles];
-let currentMusic = null;
-let segments = [];
-let intervalId = null;
-
-// Split music into segment logic
-function splitSegments(duration) {
-  const segments = [];
-  function split(start, end) {
-    if (end - start <= 60) {
-      segments.push({start, end});
-      return;
-    }
-    segments.push({start, start: start, end: start + 60});
-    segments.push({start: end - 60, end: end});
-    const middleStart = start + 60;
-    const middleEnd = end - 60;
-    if (middleEnd - middleStart > 60) {
-      split(middleStart, middleEnd);
-    }
+function shuffleArray(array) {
+  const copy = array.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  split(0, duration);
+  return copy;
+}
+
+function splitSegments(start, end) {
+  let mid = (start + end) / 2;
+  let segments = [];
+
+  // Push first 1-min
+  if (end - start >= 60) {
+    segments.push({start: start, end: start + 60});
+    segments.push({start: end - 60, end: end});
+  }
+
+  if (end - start > 120) {
+    segments = segments.concat(splitSegments(start + 60, end - 60));
+  }
+
   return segments;
+}
+
+function prepareSegments(duration) {
+  return splitSegments(0, duration);
+}
+
+function loadNewMusic() {
+  const randomFile = musicFiles[Math.floor(Math.random() * musicFiles.length)];
+  player.src = randomFile;
+  player.load();
+  currentMusic = randomFile;
 }
 
 function playNext() {
@@ -140,59 +152,56 @@ function playNext() {
     intervalId = null;
   }
 
-  if (!currentMusic || segments.length === 0) {
-    if (musicQueue.length === 0) {
-      musicQueue = [...musicFiles];
-    }
-    const nextMusic = musicQueue.shift();
-    currentMusic = nextMusic;
-    player.src = currentMusic;
-    player.load();
+  if (!currentMusic || segmentStack.length === 0) {
+    loadNewMusic();
     player.onloadedmetadata = () => {
-      const duration = player.duration;
-      segments = splitSegments(duration);
-      playSegment();
+      segmentStack = prepareSegments(player.duration);
+      startPlayingSegment();
     };
   } else {
-    playSegment();
+    startPlayingSegment();
   }
 }
 
-function playSegment() {
-  const seg = segments.shift();
-  player.currentTime = seg.start;
-  player.play().then(() => {
-    const fileName = player.src.split('/').pop(); 
-    const musicIndex = musicFiles.findIndex(f => f.endsWith(fileName)) + 1;
-    nowPlaying.textContent = `Playing music#${musicIndex}`;
+function startPlayingSegment() {
+  if (segmentStack.length === 0) {
+    loadNewMusic();
+    player.onloadedmetadata = () => {
+      segmentStack = prepareSegments(player.duration);
+      startPlayingSegment();
+    };
+    return;
+  }
 
-    timer.textContent = `00:00 / 01:00`;
+  const segment = segmentStack.shift();
+  player.currentTime = segment.start;
+
+  player.play().then(() => {
+    const musicNumber = getMusicNumber(currentMusic);
+    nowPlaying.textContent = `Playing music#${musicNumber} (1-min segment)`;
+    timer.textContent = "00:00 / 01:00";
+
     let elapsed = 0;
     intervalId = setInterval(() => {
-      elapsed++;
-      timer.textContent = `${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')} / 01:00`;
       if (elapsed >= 60) {
         clearInterval(intervalId);
-        intervalId = null;
         player.pause();
+        playNext();
+      } else {
+        elapsed++;
+        timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
       }
     }, 1000);
   }).catch(err => {
-    console.error('Playback error:', err);
+    console.error('Error playing track:', err);
+    playNext();
   });
 }
 
-window.onload = () => {
-  musicQueue = shuffleArray(musicQueue);
-};
-
-function shuffleArray(arr) {
-  const copy = arr.slice();
-  for (let i = copy.length-1; i>0; i--) {
-    const j = Math.floor(Math.random() * (i+1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
+function getMusicNumber(src) {
+  const fileName = src.split('/').pop(); // "music26.mp3"
+  const match = fileName.match(/music(\d+)\.mp3/);
+  return match ? match[1] : '?';
 }
 </script>
 
