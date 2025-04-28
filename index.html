@@ -29,6 +29,12 @@
       margin-top: 10px;
       font-size: 18px;
     }
+    #loading {
+      display: none;
+      margin-top: 20px;
+      font-size: 18px;
+      color: #555;
+    }
   </style>
 </head>
 <body>
@@ -38,6 +44,7 @@
 
   <p id="nowPlaying"></p>
   <div id="timer">00:00 / 01:00</div>
+  <div id="loading">Loading music... 🎶</div>
 
   <audio id="audio"></audio>
 
@@ -87,6 +94,7 @@
       const audio = document.getElementById('audio');
       const nowPlaying = document.getElementById('nowPlaying');
       const timer = document.getElementById('timer');
+      const loading = document.getElementById('loading');
 
       if (intervalId) {
         clearInterval(intervalId);
@@ -105,6 +113,12 @@
 
       currentIndex++;
 
+      // Show loading spinner
+      loading.style.display = 'block';
+      nowPlaying.textContent = '';
+      timer.textContent = '00:00 / 01:00';
+
+      audio.pause();
       audio.src = file;
       audio.load();
 
@@ -121,27 +135,35 @@
         const endTime = startTime + 60;
 
         audio.currentTime = startTime;
-        audio.play();
 
-        nowPlaying.textContent = `Playing ${trackLabel} (Segment: 00:00 – 01:00)`;
-        timer.textContent = `00:00 / 01:00`;
+        audio.play().then(() => {
+          // Hide loading spinner
+          loading.style.display = 'none';
 
-        let currentTime = 0;
-        intervalId = setInterval(() => {
-          if (currentTime >= 60) {
-            clearInterval(intervalId);
-            intervalId = null;
-            audio.pause();
-            nowPlaying.textContent = `Segment from ${trackLabel} ended.`;
-            timer.textContent = `00:00 / 01:00`;
-          } else {
-            currentTime++;
-            timer.textContent = `${formatTime(currentTime)} / 01:00`;
-          }
-        }, 1000);
+          nowPlaying.textContent = `Playing ${trackLabel} (Segment: 00:00 – 01:00)`;
+          timer.textContent = `00:00 / 01:00`;
+
+          let currentTime = 0;
+          intervalId = setInterval(() => {
+            if (currentTime >= 60) {
+              clearInterval(intervalId);
+              intervalId = null;
+              audio.pause();
+              nowPlaying.textContent = `Segment from ${trackLabel} ended.`;
+              timer.textContent = `00:00 / 01:00`;
+            } else {
+              currentTime++;
+              timer.textContent = `${formatTime(currentTime)} / 01:00`;
+            }
+          }, 1000);
+        }).catch(error => {
+          console.error('Error during play:', error);
+          loading.style.display = 'none'; // Hide spinner if play fails
+        });
       };
     }
   </script>
 
 </body>
 </html>
+
