@@ -2,53 +2,116 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Paputu Music Selector - Ultra Fast Mode</title>
+  <title>Paputu Music Selector - Spotify Style</title>
+
+  <!-- Using Poppins (closest free version to Spotify's font) -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Poppins', sans-serif;
+      background-color: #121212; /* Spotify dark background */
+      color: #FFFFFF; /* Light text */
       text-align: center;
-      background: #d4f5e9; /* Light Green Background */
-      color: #121212;
-      margin-top: 50px;
+      margin: 0;
+      padding: 40px;
     }
+
     button {
-      padding: 15px 30px;
-      font-size: 20px;
-      background-color: #1db954;
+      background-color: #1DB954; /* Spotify green */
       border: none;
-      border-radius: 8px;
-      cursor: pointer;
       color: white;
-    }
-    button:hover {
-      background-color: #17a74a;
-    }
-    #nowPlaying, #timer {
+      padding: 15px 40px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: background 0.3s;
       margin-top: 20px;
-      font-size: 20px;
     }
-    .volume-control {
+
+    button:hover {
+      background-color: #1ed760; /* Slightly lighter on hover */
+    }
+
+    #nowPlaying {
       margin-top: 30px;
+      font-size: 22px;
+      color: #FFFFFF;
     }
+
+    #timer {
+      margin-top: 10px;
+      font-size: 18px;
+      color: #B3B3B3;
+    }
+
+    .volume-control {
+      margin-top: 40px;
+    }
+
+    .volume-control label {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 18px;
+      color: #B3B3B3;
+    }
+
     input[type="range"] {
       width: 200px;
-      margin-top: 10px;
+      -webkit-appearance: none;
+      background: transparent;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #1DB954;
+      border-radius: 50%;
+      cursor: pointer;
+      margin-top: -5px;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 5px;
+      background: #535353;
+      border-radius: 2px;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: #1DB954;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-moz-range-track {
+      height: 5px;
+      background: #535353;
+      border-radius: 2px;
     }
   </style>
 </head>
+
 <body>
 
   <h1>🎵 Paputu Music Selector 🎵</h1>
+
   <button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
+
   <p id="nowPlaying"></p>
   <div id="timer">00:00 / 01:00</div>
 
   <div class="volume-control">
-    <label for="volumeSlider">🔊 Volume</label><br>
+    <label for="volumeSlider">🔊 Volume</label>
     <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
   </div>
 
-  <!-- 1 Player + 5 Preloaders -->
+  <!-- Audio Elements -->
   <audio id="player" preload="auto" crossorigin="anonymous"></audio>
   <audio id="preloader1" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
   <audio id="preloader2" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
@@ -136,8 +199,7 @@
         player.currentTime = startTime;
 
         player.play().then(() => {
-          // Correctly find track number
-          const fileName = player.src.split('/').pop(); // "music1.mp3"
+          const fileName = player.src.split('/').pop(); // music1.mp3
           const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
 
           nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random 1-min Segment)`;
