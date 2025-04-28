@@ -10,15 +10,15 @@
   <style>
     body {
       font-family: 'Poppins', sans-serif;
-      background-color: #121212;
-      color: #FFFFFF;
+      background-color: #121212; /* Spotify dark background */
+      color: #FFFFFF; /* Light text */
       text-align: center;
       margin: 0;
       padding: 40px;
     }
 
     button {
-      background-color: #1DB954;
+      background-color: #1DB954; /* Spotify green */
       border: none;
       color: white;
       padding: 15px 40px;
@@ -31,12 +31,13 @@
     }
 
     button:hover {
-      background-color: #1ed760;
+      background-color: #1ed760; /* Slightly lighter on hover */
     }
 
     #nowPlaying {
       margin-top: 30px;
       font-size: 22px;
+      color: #FFFFFF;
     }
 
     #timer {
@@ -100,7 +101,7 @@
 
   <h1>🎵 Paputu Music Selector 🎵</h1>
 
-  <button id="playButton">▶️ Play Next 1-Min Segment</button>
+  <button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
 
   <p id="nowPlaying"></p>
   <div id="timer">00:00 / 01:00</div>
@@ -112,117 +113,149 @@
 
   <!-- Audio Elements -->
   <audio id="player" preload="auto" crossorigin="anonymous"></audio>
-  <audio id="preloader1" preload="auto" crossorigin="anonymous" hidden></audio>
-  <audio id="preloader2" preload="auto" crossorigin="anonymous" hidden></audio>
-  <audio id="preloader3" preload="auto" crossorigin="anonymous" hidden></audio>
-  <audio id="preloader4" preload="auto" crossorigin="anonymous" hidden></audio>
-  <audio id="preloader5" preload="auto" crossorigin="anonymous" hidden></audio>
+  <audio id="preloader1" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader2" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader3" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader4" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader5" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
 
   <script>
-  const musicFiles = Array.from({length: 29}, (_, i) => `music/music${i + 1}.mp3`);
-  const player = document.getElementById('player');
-  const preloaders = [
-    document.getElementById('preloader1'),
-    document.getElementById('preloader2'),
-    document.getElementById('preloader3'),
-    document.getElementById('preloader4'),
-    document.getElementById('preloader5')
-  ];
-  const nowPlaying = document.getElementById('nowPlaying');
-  const timer = document.getElementById('timer');
-  const volumeSlider = document.getElementById('volumeSlider');
-  const playButton = document.getElementById('playButton');
+    const musicFiles = [
+      'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
+      'music/music5.mp3', 'music/music6.mp3', 'music/music7.mp3', 'music/music8.mp3',
+      'music/music9.mp3', 'music/music10.mp3', 'music/music11.mp3', 'music/music12.mp3',
+      'music/music13.mp3', 'music/music14.mp3', 'music/music15.mp3', 'music/music16.mp3',
+      'music/music17.mp3', 'music/music18.mp3', 'music/music19.mp3', 'music/music20.mp3',
+      'music/music21.mp3', 'music/music22.mp3', 'music/music23.mp3', 'music/music24.mp3',
+      'music/music25.mp3', 'music/music26.mp3', 'music/music27.mp3', 'music/music28.mp3',
+      'music/music29.mp3'
+    ];
 
-  let shuffledList = [];
-  let preloadQueue = [];
-  let intervalId = null;
-  let segmentSelection = ["first", "middle", "last"];  // Segment order
+    const player = document.getElementById('player');
+    const preloaders = [
+      document.getElementById('preloader1'),
+      document.getElementById('preloader2'),
+      document.getElementById('preloader3'),
+      document.getElementById('preloader4'),
+      document.getElementById('preloader5')
+    ];
+    const nowPlaying = document.getElementById('nowPlaying');
+    const timer = document.getElementById('timer');
+    const volumeSlider = document.getElementById('volumeSlider');
 
-  player.volume = volumeSlider.value;
-  volumeSlider.addEventListener('input', e => {
-    player.volume = e.target.value;
-  });
+    let shuffledList = [];
+    let preloadQueue = [];
+    let intervalId = null;
+    let usedSegments = {};  // Tracks which segments have been used for each song
 
-  playButton.addEventListener('click', playNext);
+    player.volume = volumeSlider.value;
+    volumeSlider.addEventListener('input', (e) => {
+      player.volume = e.target.value;
+    });
 
-  function shuffleArray(array) {
-    const copy = [...array];
-    for (let i = copy.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
-    return copy;
-  }
-
-  function prepareNextTracks() {
-    while (preloadQueue.length < 5 && shuffledList.length > 0) {
-      const file = shuffledList.shift();
-      const preloader = preloaders[preloadQueue.length];
-      preloader.src = file;
-      preloader.load();
-      preloadQueue.push(preloader);
-    }
-  }
-
-  function getSegmentTime(duration, segment) {
-    if (segment === "first") return 0;
-    if (segment === "last") return duration - 60;
-    return duration / 2 - 30;  // Middle
-  }
-
-  function playNext() {
-    if (intervalId) {
-      clearInterval(intervalId);
+    function shuffleArray(array) {
+      const copy = array.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
     }
 
-    if (preloadQueue.length === 0) {
+    function prepareNextTracks() {
+      while (preloadQueue.length < 5 && shuffledList.length > 0) {
+        const file = shuffledList.shift();
+        const preloader = preloaders[preloadQueue.length];
+        preloader.src = file;
+        preloader.load();
+        preloadQueue.push(preloader);
+      }
+    }
+
+    function getRandomSegment(duration, used) {
+      const firstSegmentEnd = 60;  // First segment: 0 to 60 seconds
+      const lastSegmentStart = duration - 60;  // Last segment: last 60 seconds
+
+      const middleStart = firstSegmentEnd;
+      const middleEnd = lastSegmentStart;
+
+      let segment = null;
+
+      // Logic to select a segment (first, middle, or last) without overlapping
+      while (!segment) {
+        const randomChoice = Math.floor(Math.random() * 3); // Random number between 0 and 2
+        if (randomChoice === 0 && !used.first) {
+          segment = { start: 0, end: firstSegmentEnd };
+          used.first = true;
+        } else if (randomChoice === 1 && !used.middle) {
+          const middleStart = Math.floor(Math.random() * (middleEnd - middleStart)) + middleStart;
+          const middleEnd = middleStart + 60;  // Middle segment length
+          segment = { start: middleStart, end: middleEnd };
+          used.middle = true;
+        } else if (randomChoice === 2 && !used.last) {
+          segment = { start: lastSegmentStart, end: duration };
+          used.last = true;
+        }
+      }
+
+      return segment;
+    }
+
+    function playNext() {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+
+      if (preloadQueue.length === 0) {
+        shuffledList = shuffleArray(musicFiles);
+        prepareNextTracks();
+      }
+
+      const preloader = preloadQueue.shift();
+      player.src = preloader.src;
+      player.load();
+
+      player.onloadedmetadata = () => {
+        const duration = player.duration;
+        const fileName = player.src.split('/').pop(); // music1.mp3
+        const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
+
+        if (!usedSegments[fileName]) usedSegments[fileName] = {};
+
+        const segment = getRandomSegment(duration, usedSegments[fileName]);
+
+        player.currentTime = segment.start;
+
+        player.play().then(() => {
+          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random 1-min Segment)`;
+          timer.textContent = `00:00 / 01:00`;
+
+          let elapsed = 0;
+          intervalId = setInterval(() => {
+            if (elapsed >= 60) {
+              clearInterval(intervalId);
+              player.pause();
+              playNext();
+            } else {
+              elapsed++;
+              timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
+            }
+          }, 1000);
+
+          prepareNextTracks();
+        }).catch(err => {
+          console.error('Error playing track:', err);
+          playNext();
+        });
+      };
+    }
+
+    window.onload = () => {
       shuffledList = shuffleArray(musicFiles);
       prepareNextTracks();
-    }
-
-    const preloader = preloadQueue.shift();
-    player.src = preloader.src;
-    player.load();
-
-    player.onloadedmetadata = () => {
-      const duration = player.duration;
-      const segment = segmentSelection.shift(); // Get the current segment (first, middle, last)
-      segmentSelection.push(segment); // Recycle the order
-
-      const startTime = getSegmentTime(duration, segment);
-      player.currentTime = startTime;
-
-      player.play().then(() => {
-        const fileName = player.src.split('/').pop();
-        const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
-        nowPlaying.textContent = `Playing music#${matchingIndex + 1} (${segment} Segment)`;
-        timer.textContent = `00:00 / 01:00`;
-
-        let elapsed = 0;
-        intervalId = setInterval(() => {
-          elapsed++;
-          timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
-          if (elapsed >= 60) {
-            clearInterval(intervalId);
-            player.pause();
-            playNext();
-          }
-        }, 1000);
-
-        prepareNextTracks();
-      }).catch(err => {
-        console.error('Error playing track:', err);
-        playNext();
-      });
     };
-  }
-
-  window.addEventListener('load', () => {
-    shuffledList = shuffleArray(musicFiles);
-    prepareNextTracks();
-  });
-</script>
+  </script>
 
 </body>
 </html>
-
