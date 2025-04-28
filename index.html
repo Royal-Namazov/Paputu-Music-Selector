@@ -172,29 +172,31 @@
       }
     }
 
-    function getRandomSegment(duration, used) {
+    function getSegment(duration, fileName) {
+      // Tracks which segment has been used for each song
+      if (!usedSegments[fileName]) usedSegments[fileName] = { first: false, middle: false, last: false };
+
       const firstSegmentEnd = 60;  // First segment: 0 to 60 seconds
       const lastSegmentStart = duration - 60;  // Last segment: last 60 seconds
-
-      const middleStart = firstSegmentEnd;
-      const middleEnd = lastSegmentStart;
+      const middleStart = 60; // Starting point of the middle section
+      const middleEnd = duration - 60; // Ending point of the middle section
 
       let segment = null;
 
       // Logic to select a segment (first, middle, or last) without overlapping
       while (!segment) {
         const randomChoice = Math.floor(Math.random() * 3); // Random number between 0 and 2
-        if (randomChoice === 0 && !used.first) {
+        if (randomChoice === 0 && !usedSegments[fileName].first) {
           segment = { start: 0, end: firstSegmentEnd };
-          used.first = true;
-        } else if (randomChoice === 1 && !used.middle) {
-          const middleStart = Math.floor(Math.random() * (middleEnd - middleStart)) + middleStart;
-          const middleEnd = middleStart + 60;  // Middle segment length
-          segment = { start: middleStart, end: middleEnd };
-          used.middle = true;
-        } else if (randomChoice === 2 && !used.last) {
+          usedSegments[fileName].first = true;
+        } else if (randomChoice === 1 && !usedSegments[fileName].middle) {
+          const middleStartTime = Math.floor(Math.random() * (middleEnd - middleStart)) + middleStart;
+          const middleEndTime = middleStartTime + 60;  // Middle segment length
+          segment = { start: middleStartTime, end: middleEndTime };
+          usedSegments[fileName].middle = true;
+        } else if (randomChoice === 2 && !usedSegments[fileName].last) {
           segment = { start: lastSegmentStart, end: duration };
-          used.last = true;
+          usedSegments[fileName].last = true;
         }
       }
 
@@ -219,16 +221,12 @@
       player.onloadedmetadata = () => {
         const duration = player.duration;
         const fileName = player.src.split('/').pop(); // music1.mp3
-        const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
 
-        if (!usedSegments[fileName]) usedSegments[fileName] = {};
-
-        const segment = getRandomSegment(duration, usedSegments[fileName]);
-
+        const segment = getSegment(duration, fileName);
         player.currentTime = segment.start;
 
         player.play().then(() => {
-          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random 1-min Segment)`;
+          nowPlaying.textContent = `Playing music: ${fileName} (Random 1-min Segment)`;
           timer.textContent = `00:00 / 01:00`;
 
           let elapsed = 0;
