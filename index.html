@@ -119,101 +119,109 @@
   <audio id="preloader5" preload="auto" crossorigin="anonymous" hidden></audio>
 
   <script>
-    const musicFiles = Array.from({length: 29}, (_, i) => `music/music${i + 1}.mp3`);
-    const player = document.getElementById('player');
-    const preloaders = [
-      document.getElementById('preloader1'),
-      document.getElementById('preloader2'),
-      document.getElementById('preloader3'),
-      document.getElementById('preloader4'),
-      document.getElementById('preloader5')
-    ];
-    const nowPlaying = document.getElementById('nowPlaying');
-    const timer = document.getElementById('timer');
-    const volumeSlider = document.getElementById('volumeSlider');
-    const playButton = document.getElementById('playButton');
+  const musicFiles = Array.from({length: 29}, (_, i) => `music/music${i + 1}.mp3`);
+  const player = document.getElementById('player');
+  const preloaders = [
+    document.getElementById('preloader1'),
+    document.getElementById('preloader2'),
+    document.getElementById('preloader3'),
+    document.getElementById('preloader4'),
+    document.getElementById('preloader5')
+  ];
+  const nowPlaying = document.getElementById('nowPlaying');
+  const timer = document.getElementById('timer');
+  const volumeSlider = document.getElementById('volumeSlider');
+  const playButton = document.getElementById('playButton');
 
-    let shuffledList = [];
-    let preloadQueue = [];
-    let intervalId = null;
+  let shuffledList = [];
+  let preloadQueue = [];
+  let intervalId = null;
+  let segmentSelection = ["first", "middle", "last"];  // Segment order
 
-    player.volume = volumeSlider.value;
-    volumeSlider.addEventListener('input', e => {
-      player.volume = e.target.value;
-    });
+  player.volume = volumeSlider.value;
+  volumeSlider.addEventListener('input', e => {
+    player.volume = e.target.value;
+  });
 
-    playButton.addEventListener('click', playNext);
+  playButton.addEventListener('click', playNext);
 
-    function shuffleArray(array) {
-      const copy = [...array];
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-      }
-      return copy;
+  function shuffleArray(array) {
+    const copy = [...array];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  function prepareNextTracks() {
+    while (preloadQueue.length < 5 && shuffledList.length > 0) {
+      const file = shuffledList.shift();
+      const preloader = preloaders[preloadQueue.length];
+      preloader.src = file;
+      preloader.load();
+      preloadQueue.push(preloader);
+    }
+  }
+
+  function getSegmentTime(duration, segment) {
+    if (segment === "first") return 0;
+    if (segment === "last") return duration - 60;
+    return duration / 2 - 30;  // Middle
+  }
+
+  function playNext() {
+    if (intervalId) {
+      clearInterval(intervalId);
     }
 
-    function prepareNextTracks() {
-      while (preloadQueue.length < 5 && shuffledList.length > 0) {
-        const file = shuffledList.shift();
-        const preloader = preloaders[preloadQueue.length];
-        preloader.src = file;
-        preloader.load();
-        preloadQueue.push(preloader);
-      }
-    }
-
-    function getRandomSegment(duration) {
-      return (duration <= 60) ? 0 : Math.random() * (duration - 60);
-    }
-
-    function playNext() {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-
-      if (preloadQueue.length === 0) {
-        shuffledList = shuffleArray(musicFiles);
-        prepareNextTracks();
-      }
-
-      const preloader = preloadQueue.shift();
-      player.src = preloader.src;
-      player.load();
-
-      player.onloadedmetadata = () => {
-        const startTime = getRandomSegment(player.duration);
-        player.currentTime = startTime;
-        player.play().then(() => {
-          const fileName = player.src.split('/').pop();
-          const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
-          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random 1-min Segment)`;
-          timer.textContent = `00:00 / 01:00`;
-
-          let elapsed = 0;
-          intervalId = setInterval(() => {
-            elapsed++;
-            timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
-            if (elapsed >= 60) {
-              clearInterval(intervalId);
-              player.pause();
-              playNext();
-            }
-          }, 1000);
-
-          prepareNextTracks();
-        }).catch(err => {
-          console.error('Error playing track:', err);
-          playNext();
-        });
-      };
-    }
-
-    window.addEventListener('load', () => {
+    if (preloadQueue.length === 0) {
       shuffledList = shuffleArray(musicFiles);
       prepareNextTracks();
-    });
-  </script>
+    }
+
+    const preloader = preloadQueue.shift();
+    player.src = preloader.src;
+    player.load();
+
+    player.onloadedmetadata = () => {
+      const duration = player.duration;
+      const segment = segmentSelection.shift(); // Get the current segment (first, middle, last)
+      segmentSelection.push(segment); // Recycle the order
+
+      const startTime = getSegmentTime(duration, segment);
+      player.currentTime = startTime;
+
+      player.play().then(() => {
+        const fileName = player.src.split('/').pop();
+        const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
+        nowPlaying.textContent = `Playing music#${matchingIndex + 1} (${segment} Segment)`;
+        timer.textContent = `00:00 / 01:00`;
+
+        let elapsed = 0;
+        intervalId = setInterval(() => {
+          elapsed++;
+          timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
+          if (elapsed >= 60) {
+            clearInterval(intervalId);
+            player.pause();
+            playNext();
+          }
+        }, 1000);
+
+        prepareNextTracks();
+      }).catch(err => {
+        console.error('Error playing track:', err);
+        playNext();
+      });
+    };
+  }
+
+  window.addEventListener('load', () => {
+    shuffledList = shuffleArray(musicFiles);
+    prepareNextTracks();
+  });
+</script>
 
 </body>
 </html>
