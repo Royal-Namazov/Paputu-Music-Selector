@@ -2,168 +2,60 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Paputu Music Selector - Ultra Fast & Interactive</title>
+  <title>Paputu Music Selector</title>
   <style>
     body {
-      font-family: 'Arial', sans-serif;
+      font-family: Arial, sans-serif;
       text-align: center;
-      margin: 0;
-      padding: 0;
-      background: linear-gradient(135deg, #1e3c72, #2a5298);
+      background: #121212;
       color: #fff;
+      margin-top: 50px;
     }
-
-    h1 {
-      margin-top: 40px;
-      font-size: 3em;
-      color: #fff;
-      text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
-    }
-
     button {
-      padding: 14px 28px;
+      padding: 15px 30px;
       font-size: 20px;
-      background: #3498db;
-      color: #fff;
+      background-color: #1db954;
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       cursor: pointer;
-      transition: background 0.3s ease, transform 0.2s ease;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     }
-
     button:hover {
-      background: #2980b9;
-      transform: scale(1.05);
+      background-color: #17a74a;
     }
-
-    button:active {
-      background: #1abc9c;
-      transform: scale(0.98);
-    }
-
-    #nowPlaying {
+    #nowPlaying, #timer {
       margin-top: 20px;
-      font-size: 1.5em;
-      font-weight: bold;
+      font-size: 20px;
     }
-
-    #timer {
-      margin-top: 10px;
-      font-size: 1.2em;
-    }
-
-    #loader {
-      display: none;
-      margin-top: 30px;
-      position: relative;
-    }
-
-    .loader-bar {
-      width: 0%;
-      height: 6px;
-      background-color: #3498db;
-      border-radius: 3px;
-      transition: width 0.3s ease-in-out;
-    }
-
-    .fade {
-      opacity: 0;
-      transition: opacity 1s ease;
-    }
-    .fade.show {
-      opacity: 1;
-    }
-
-    .interactive-loader {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-top: 20px;
-      font-size: 1.2em;
-      color: #fff;
-      animation: pulse 1.5s infinite ease-in-out;
-    }
-
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.1); }
-      100% { transform: scale(1); }
-    }
-
-    /* Volume slider */
     .volume-control {
       margin-top: 30px;
-      text-align: center;
     }
-
-    .volume-label {
-      font-size: 1.2em;
-      margin-bottom: 10px;
-    }
-
     input[type="range"] {
       width: 200px;
-      height: 10px;
-      background: #fff;
-      border-radius: 5px;
-      -webkit-appearance: none;
-      appearance: none;
+      margin-top: 10px;
     }
-
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 20px;
-      height: 20px;
-      background: #3498db;
-      border-radius: 50%;
-      cursor: pointer;
-    }
-
-    input[type="range"]::-webkit-slider-thumb:hover {
-      background: #2980b9;
-    }
-
-    input[type="range"]::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
-      background: #3498db;
-      border-radius: 50%;
-      cursor: pointer;
-    }
-
   </style>
 </head>
 <body>
 
   <h1>🎵 Paputu Music Selector 🎵</h1>
-  <button onclick="playNext()">Play 1-Min Random Segment</button>
-
+  <button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
   <p id="nowPlaying"></p>
   <div id="timer">00:00 / 01:00</div>
 
-  <!-- Loader Bar -->
-  <div id="loader">
-    <div class="loader-bar" id="loadingBar"></div>
-  </div>
-
-  <!-- Interactive loading text -->
-  <div id="interactiveLoader" class="interactive-loader" style="display: none;">
-    <span>Loading Next Track...</span>
-  </div>
-
-  <!-- Volume Control -->
   <div class="volume-control">
-    <label for="volumeSlider" class="volume-label">Volume Control</label>
+    <label for="volumeSlider">🔊 Volume</label><br>
     <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
   </div>
 
-  <!-- Double Audio: one for playing, one for preloading -->
+  <!-- 1 Player + 5 Preloaders -->
   <audio id="player" preload="auto" crossorigin="anonymous"></audio>
-  <audio id="preloader" preload="auto" crossorigin="anonymous" style="display:none;"></audio>
+  <audio id="preloader1" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader2" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader3" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader4" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader5" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
 
-  <script defer>
+  <script>
     const musicFiles = [
       'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
       'music/music5.mp3', 'music/music6.mp3', 'music/music7.mp3', 'music/music8.mp3',
@@ -175,22 +67,23 @@
       'music/music29.mp3'
     ];
 
-    let shuffledList = [];
-    let currentIndex = 0;
-    let intervalId = null;
-
     const player = document.getElementById('player');
-    const preloader = document.getElementById('preloader');
+    const preloaders = [
+      document.getElementById('preloader1'),
+      document.getElementById('preloader2'),
+      document.getElementById('preloader3'),
+      document.getElementById('preloader4'),
+      document.getElementById('preloader5')
+    ];
     const nowPlaying = document.getElementById('nowPlaying');
     const timer = document.getElementById('timer');
-    const loadingBar = document.getElementById('loadingBar');
-    const interactiveLoader = document.getElementById('interactiveLoader');
     const volumeSlider = document.getElementById('volumeSlider');
 
-    // Set initial volume
-    player.volume = volumeSlider.value;
+    let shuffledList = [];
+    let preloadQueue = [];
+    let intervalId = null;
 
-    // Adjust volume on slider change
+    player.volume = volumeSlider.value;
     volumeSlider.addEventListener('input', (e) => {
       player.volume = e.target.value;
     });
@@ -204,35 +97,20 @@
       return copy;
     }
 
-    function formatTime(seconds) {
-      const min = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const sec = String(Math.floor(seconds % 60)).padStart(2, '0');
-      return `${min}:${sec}`;
-    }
-
-    function getSegmentStart(duration) {
-      const segments = [];
-      if (duration >= 60) segments.push(0);
-      if (duration >= 120) {
-        segments.push(Math.floor(duration / 2) - 30);
-        segments.push(Math.floor(duration) - 60);
+    function prepareNextTracks() {
+      while (preloadQueue.length < 5 && shuffledList.length > 0) {
+        const file = shuffledList.shift();
+        const preloader = preloaders[preloadQueue.length];
+        preloader.src = file;
+        preloader.load();
+        preloadQueue.push(preloader);
       }
-      const index = Math.floor(Math.random() * segments.length);
-      return segments[index];
     }
 
-    function preloadNextTrack() {
-      if (shuffledList.length === 0 || currentIndex >= shuffledList.length) {
-        shuffledList = shuffleArray(musicFiles);
-        currentIndex = 0;
-      }
-      const file = shuffledList[currentIndex];
-      preloader.src = file;
-      preloader.load();
-    }
-
-    function updateLoaderProgress() {
-      loadingBar.style.width = `${(player.currentTime / player.duration) * 100}%`;
+    function getRandomSegment(duration) {
+      if (duration <= 60) return 0;
+      const maxStart = duration - 60;
+      return Math.random() * maxStart;
     }
 
     function playNext() {
@@ -241,64 +119,51 @@
         intervalId = null;
       }
 
-      if (shuffledList.length === 0 || currentIndex >= shuffledList.length) {
+      if (preloadQueue.length === 0) {
         shuffledList = shuffleArray(musicFiles);
-        currentIndex = 0;
+        prepareNextTracks();
       }
 
-      const file = shuffledList[currentIndex];
-      const trackLabel = `music#${musicFiles.indexOf(file) + 1}`;
-      currentIndex++;
-
-      player.pause();
-      interactiveLoader.style.display = 'block'; // Show loading text
-      player.src = preloader.src || file;
+      const preloader = preloadQueue.shift();
+      player.src = preloader.src;
       player.load();
 
       player.onloadedmetadata = () => {
         const duration = player.duration;
+        const startTime = getRandomSegment(duration);
 
-        if (duration < 60) {
-          alert(`${trackLabel} is too short for 1-min segment. Skipping...`);
-          playNext();
-          return;
-        }
-
-        const startTime = getSegmentStart(duration);
         player.currentTime = startTime;
 
         player.play().then(() => {
-          nowPlaying.textContent = `Playing ${trackLabel} (Segment: 00:00 – 01:00)`;
+          const trackIndex = musicFiles.indexOf(preloader.src.split('/').pop());
+          nowPlaying.textContent = `Playing music#${trackIndex + 1} (Random 1-min Segment)`;
           timer.textContent = `00:00 / 01:00`;
 
-          let currentTime = 0;
+          let elapsed = 0;
           intervalId = setInterval(() => {
-            if (currentTime >= 60) {
+            if (elapsed >= 60) {
               clearInterval(intervalId);
-              intervalId = null;
               player.pause();
-              nowPlaying.textContent = `Segment from ${trackLabel} ended.`;
-              timer.textContent = `00:00 / 01:00`;
-              interactiveLoader.style.display = 'none'; // Hide loading text
+              playNext();
             } else {
-              currentTime++;
-              timer.textContent = `${formatTime(currentTime)} / 01:00`;
+              elapsed++;
+              timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
             }
           }, 1000);
 
-          preloadNextTrack();
-        }).catch(error => {
-          console.error('Error during play:', error);
-          alert('Playback error. Try again!');
+          prepareNextTracks(); // Keep preloading ahead
+        }).catch(err => {
+          console.error('Error playing track:', err);
+          playNext();
         });
       };
-
-      setInterval(updateLoaderProgress, 100); // Update loading progress every 100ms
     }
 
-    window.onload = preloadNextTrack;
+    window.onload = () => {
+      shuffledList = shuffleArray(musicFiles);
+      prepareNextTracks();
+    };
   </script>
 
 </body>
 </html>
-
