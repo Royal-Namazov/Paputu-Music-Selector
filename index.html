@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Paputu Music Selector</title>
+  <title>Paputu Music Selector - Ultra Polished</title>
   <style>
     body {
       font-family: sans-serif;
       text-align: center;
       margin-top: 60px;
     }
+
     button {
       padding: 12px 24px;
       font-size: 18px;
@@ -17,39 +18,67 @@
       border: none;
       border-radius: 8px;
       cursor: pointer;
+      transition: background 0.3s ease, transform 0.2s ease;
     }
     button:hover {
       background: #0056b3;
+      transform: scale(1.05);
     }
+    button:active {
+      background: #004085;
+      transform: scale(0.98);
+    }
+
     #nowPlaying {
       margin-top: 20px;
       font-size: 20px;
     }
+
     #timer {
       margin-top: 10px;
       font-size: 18px;
     }
-    #loading {
+
+    #loader {
       display: none;
       margin-top: 20px;
-      font-size: 18px;
-      color: #555;
+      width: 40px;
+      height: 40px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #3498db;
+      border-radius: 50%;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Fade-in/out effect */
+    .fade {
+      opacity: 0;
+      transition: opacity 1s ease;
+    }
+    .fade.show {
+      opacity: 1;
     }
   </style>
 </head>
 <body>
 
   <h1>🎵 Paputu Music Selector 🎵</h1>
-  <button onclick="playSegment()">Play 1-Min Random Segment</button>
+  <button onclick="playNext()">Play 1-Min Random Segment</button>
 
   <p id="nowPlaying"></p>
   <div id="timer">00:00 / 01:00</div>
-  <div id="loading">Loading music... 🎶</div>
 
-  <!-- Fixed: preload audio early -->
-  <audio id="audio" preload="auto" crossorigin="anonymous"></audio>
+  <div id="loader"></div> <!-- Loader animation -->
 
-  <!-- Move script to end and defer -->
+  <!-- Double Audio: one for playing, one for preloading -->
+  <audio id="player" preload="auto" crossorigin="anonymous"></audio>
+  <audio id="preloader" preload="auto" crossorigin="anonymous" style="display:none;"></audio>
+
   <script defer>
     const musicFiles = [
       'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
@@ -65,6 +94,12 @@
     let shuffledList = [];
     let currentIndex = 0;
     let intervalId = null;
+
+    const player = document.getElementById('player');
+    const preloader = document.getElementById('preloader');
+    const nowPlaying = document.getElementById('nowPlaying');
+    const timer = document.getElementById('timer');
+    const loader = document.getElementById('loader');
 
     function shuffleArray(array) {
       const copy = array.slice();
@@ -83,63 +118,70 @@
 
     function getSegmentStart(duration) {
       const segments = [];
-      if (duration >= 60) segments.push(0); // Start
+      if (duration >= 60) segments.push(0);
       if (duration >= 120) {
-        segments.push(Math.floor(duration / 2) - 30); // Middle
-        segments.push(Math.floor(duration) - 60); // End
+        segments.push(Math.floor(duration / 2) - 30);
+        segments.push(Math.floor(duration) - 60);
       }
       const index = Math.floor(Math.random() * segments.length);
       return segments[index];
     }
 
-    function playSegment() {
-      const audio = document.getElementById('audio');
-      const nowPlaying = document.getElementById('nowPlaying');
-      const timer = document.getElementById('timer');
-      const loading = document.getElementById('loading');
+    function preloadNextTrack() {
+      if (shuffledList.length === 0 || currentIndex >= shuffledList.length) {
+        shuffledList = shuffleArray(musicFiles);
+        currentIndex = 0;
+      }
+      const file = shuffledList[currentIndex];
+      preloader.src = file;
+      preloader.load();
+    }
 
+    function fadeIn(element) {
+      element.classList.add('fade');
+      setTimeout(() => element.classList.add('show'), 50);
+    }
+
+    function fadeOut(element) {
+      element.classList.remove('show');
+      setTimeout(() => element.classList.remove('fade'), 1000);
+    }
+
+    function playNext() {
       if (intervalId) {
         clearInterval(intervalId);
         intervalId = null;
       }
 
-      // If all music played, reshuffle
       if (shuffledList.length === 0 || currentIndex >= shuffledList.length) {
         shuffledList = shuffleArray(musicFiles);
         currentIndex = 0;
-        console.log('Reshuffling music list...');
       }
 
       const file = shuffledList[currentIndex];
-      const trackLabel = `music#${musicFiles.indexOf(file) + 1}`; // get original music number
-
+      const trackLabel = `music#${musicFiles.indexOf(file) + 1}`;
       currentIndex++;
 
-      // Show loading spinner
-      loading.style.display = 'block';
-      nowPlaying.textContent = '';
-      timer.textContent = '00:00 / 01:00';
+      player.pause();
+      fadeOut(loader);
+      player.src = preloader.src || file;
+      player.load();
 
-      audio.pause();
-      audio.src = file;
-      audio.load();
-
-      audio.onloadedmetadata = () => {
-        const duration = audio.duration;
+      player.onloadedmetadata = () => {
+        const duration = player.duration;
 
         if (duration < 60) {
           alert(`${trackLabel} is too short for 1-min segment. Skipping...`);
-          playSegment();
+          playNext();
           return;
         }
 
         const startTime = getSegmentStart(duration);
-        audio.currentTime = startTime;
+        player.currentTime = startTime;
 
-        audio.play().then(() => {
-          // Hide loading spinner
-          loading.style.display = 'none';
+        fadeIn(loader); // Show loader before playing
 
+        player.play().then(() => {
           nowPlaying.textContent = `Playing ${trackLabel} (Segment: 00:00 – 01:00)`;
           timer.textContent = `00:00 / 01:00`;
 
@@ -148,21 +190,26 @@
             if (currentTime >= 60) {
               clearInterval(intervalId);
               intervalId = null;
-              audio.pause();
+              player.pause();
               nowPlaying.textContent = `Segment from ${trackLabel} ended.`;
               timer.textContent = `00:00 / 01:00`;
+
+              fadeOut(loader); // Hide loader after play ends
             } else {
               currentTime++;
               timer.textContent = `${formatTime(currentTime)} / 01:00`;
             }
           }, 1000);
+
+          preloadNextTrack();
         }).catch(error => {
           console.error('Error during play:', error);
-          loading.style.display = 'none'; // Hide spinner if play fails
           alert('Playback error. Try again!');
         });
       };
     }
+
+    window.onload = preloadNextTrack;
   </script>
 
 </body>
