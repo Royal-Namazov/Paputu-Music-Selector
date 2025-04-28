@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Paputu Music Selector</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 60px;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 18px;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #nowPlaying {
+      margin-top: 20px;
+      font-size: 20px;
+    }
+    #timer {
+      margin-top: 10px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎵 Paputu Music Selector 🎵</h1>
+  <button onclick="playSegment()">Play 1-Min Random Segment</button>
+
+  <p id="nowPlaying"></p>
+  <div id="timer">00:00 / 01:00</div>
+
+  <audio id="audio"></audio>
+
+  <script>
+    const musicFiles = [
+      'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
+      'music/music5.mp3', 'music/music6.mp3', 'music/music7.mp3', 'music/music8.mp3',
+      'music/music9.mp3', 'music/music10.mp3', 'music/music11.mp3', 'music/music12.mp3',
+      'music/music13.mp3', 'music/music14.mp3', 'music/music15.mp3', 'music/music16.mp3',
+      'music/music17.mp3', 'music/music18.mp3', 'music/music19.mp3', 'music/music20.mp3',
+      'music/music21.mp3', 'music/music22.mp3', 'music/music23.mp3', 'music/music24.mp3',
+      'music/music25.mp3', 'music/music26.mp3', 'music/music27.mp3', 'music/music28.mp3',
+      'music/music29.mp3'
+    ];
+
+    let shuffledList = [];
+    let currentIndex = 0;
+    let intervalId = null;
+
+    function shuffleArray(array) {
+      const copy = array.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function formatTime(seconds) {
+      const min = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const sec = String(Math.floor(seconds % 60)).padStart(2, '0');
+      return `${min}:${sec}`;
+    }
+
+    function getSegmentStart(duration) {
+      const segments = [];
+      if (duration >= 60) segments.push(0); // Start
+      if (duration >= 120) {
+        segments.push(Math.floor(duration / 2) - 30); // Middle
+        segments.push(Math.floor(duration) - 60); // End
+      }
+      const index = Math.floor(Math.random() * segments.length);
+      return segments[index];
+    }
+
+    function playSegment() {
+      const audio = document.getElementById('audio');
+      const nowPlaying = document.getElementById('nowPlaying');
+      const timer = document.getElementById('timer');
+
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+
+      // If all music played, reshuffle
+      if (shuffledList.length === 0 || currentIndex >= shuffledList.length) {
+        shuffledList = shuffleArray(musicFiles);
+        currentIndex = 0;
+        console.log('Reshuffling music list...');
+      }
+
+      const file = shuffledList[currentIndex];
+      const trackLabel = `music#${musicFiles.indexOf(file) + 1}`; // get original music number
+
+      currentIndex++;
+
+      audio.src = file;
+      audio.load();
+
+      audio.onloadedmetadata = () => {
+        const duration = audio.duration;
+
+        if (duration < 60) {
+          alert(`${trackLabel} is too short for 1-min segment. Skipping...`);
+          playSegment();
+          return;
+        }
+
+        const startTime = getSegmentStart(duration);
+        const endTime = startTime + 60;
+
+        audio.currentTime = startTime;
+        audio.play();
+
+        nowPlaying.textContent = `Playing ${trackLabel} (Segment: 00:00 – 01:00)`;
+        timer.textContent = `00:00 / 01:00`;
+
+        let currentTime = 0;
+        intervalId = setInterval(() => {
+          if (currentTime >= 60) {
+            clearInterval(intervalId);
+            intervalId = null;
+            audio.pause();
+            nowPlaying.textContent = `Segment from ${trackLabel} ended.`;
+            timer.textContent = `00:00 / 01:00`;
+          } else {
+            currentTime++;
+            timer.textContent = `${formatTime(currentTime)} / 01:00`;
+          }
+        }, 1000);
+      };
+    }
+  </script>
+
+</body>
+</html>
