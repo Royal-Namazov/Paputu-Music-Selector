@@ -2,27 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Paputu Music Selector</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <title>Music Segment Player</title>
   <style>
     body {
-      font-family: 'Poppins', sans-serif;
+      font-family: Arial, sans-serif;
       background-color: #121212;
-      color: #FFFFFF;
+      color: white;
       text-align: center;
-      margin: 0;
-      padding: 40px;
+      padding-top: 50px;
     }
     button {
       background-color: #1DB954;
       border: none;
-      color: white;
-      padding: 15px 40px;
+      padding: 15px 30px;
       font-size: 18px;
-      font-weight: bold;
-      border-radius: 30px;
+      border-radius: 25px;
       cursor: pointer;
-      transition: background 0.3s;
       margin-top: 20px;
     }
     button:hover {
@@ -31,167 +26,148 @@
     #nowPlaying {
       margin-top: 30px;
       font-size: 22px;
-      color: #FFFFFF;
     }
     #timer {
       margin-top: 10px;
       font-size: 18px;
       color: #B3B3B3;
     }
-    .volume-control {
-      margin-top: 40px;
+    #progressContainer {
+      width: 300px;
+      height: 10px;
+      background-color: #333;
+      border-radius: 5px;
+      margin: 20px auto;
+      overflow: hidden;
     }
-    .volume-control label {
-      display: block;
-      margin-bottom: 10px;
-      font-size: 18px;
-      color: #B3B3B3;
-    }
-    input[type="range"] {
-      width: 200px;
-      -webkit-appearance: none;
-      background: transparent;
-    }
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 16px;
-      height: 16px;
-      background: #1DB954;
-      border-radius: 50%;
-      cursor: pointer;
-      margin-top: -5px;
-    }
-    input[type="range"]::-webkit-slider-runnable-track {
-      height: 5px;
-      background: #535353;
-      border-radius: 2px;
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background-color: #1DB954;
+      transition: width 1s linear;
     }
   </style>
 </head>
-
 <body>
 
-  <h1>🎵 Paputu Music Selector 🎵</h1>
+<h1>🎵 Music Segment Player 🎵</h1>
+<button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
 
-  <button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
+<p id="nowPlaying"></p>
+<div id="timer">00:00 / 01:00</div>
 
-  <p id="nowPlaying"></p>
-  <div id="timer">00:00 / 01:00</div>
+<div id="progressContainer">
+  <div id="progressBar"></div>
+</div>
 
-  <div class="volume-control">
-    <label for="volumeSlider">🔊 Volume</label>
-    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
-  </div>
+<audio id="player" preload="auto"></audio>
 
-  <audio id="player" preload="auto" crossorigin="anonymous"></audio>
+<script>
+const musicFiles = [
+  'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
+  'music/music5.mp3', 'music/music6.mp3', 'music/music7.mp3', 'music/music8.mp3',
+  'music/music9.mp3', 'music/music10.mp3', 'music/music11.mp3', 'music/music12.mp3',
+  'music/music13.mp3', 'music/music14.mp3', 'music/music15.mp3', 'music/music16.mp3',
+  'music/music17.mp3', 'music/music18.mp3', 'music/music19.mp3', 'music/music20.mp3',
+  'music/music21.mp3', 'music/music22.mp3', 'music/music23.mp3', 'music/music24.mp3',
+  'music/music25.mp3', 'music/music26.mp3', 'music/music27.mp3', 'music/music28.mp3',
+  'music/music29.mp3'
+];
 
-  <script>
-    const musicFiles = [
-      'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
-      'music/music5.mp3', 'music/music6.mp3', 'music/music7.mp3', 'music/music8.mp3',
-      'music/music9.mp3', 'music/music10.mp3', 'music/music11.mp3', 'music/music12.mp3',
-      'music/music13.mp3', 'music/music14.mp3', 'music/music15.mp3', 'music/music16.mp3',
-      'music/music17.mp3', 'music/music18.mp3', 'music/music19.mp3', 'music/music20.mp3',
-      'music/music21.mp3', 'music/music22.mp3', 'music/music23.mp3', 'music/music24.mp3',
-      'music/music25.mp3', 'music/music26.mp3', 'music/music27.mp3', 'music/music28.mp3',
-      'music/music29.mp3'
-    ];
+const player = document.getElementById('player');
+const nowPlaying = document.getElementById('nowPlaying');
+const timer = document.getElementById('timer');
+const progressBar = document.getElementById('progressBar');
 
-    const player = document.getElementById('player');
-    const nowPlaying = document.getElementById('nowPlaying');
-    const timer = document.getElementById('timer');
-    const volumeSlider = document.getElementById('volumeSlider');
+let currentTour = [];
+let playedSegments = {};
+let intervalId = null;
 
-    let currentTourSongs = [];
-    let playedSegments = {}; // Store previous segments
-    let intervalId = null;
+function shuffle(array) {
+  return array.sort(() => Math.random() - 0.5);
+}
 
-    player.volume = volumeSlider.value;
-    volumeSlider.addEventListener('input', (e) => {
-      player.volume = e.target.value;
-    });
+function prepareTour() {
+  currentTour = shuffle(musicFiles.slice());
+}
 
-    function shuffleArray(array) {
-      const copy = array.slice();
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
+function getRandomNonOverlappingSegment(duration, previousSegments) {
+  const safeStarts = [];
+
+  for (let start = 0; start <= duration - 60; start += 1) {
+    let ok = true;
+    for (let usedStart of previousSegments) {
+      if (Math.abs(start - usedStart) < 60) {
+        ok = false;
+        break;
       }
-      return copy;
     }
+    if (ok) safeStarts.push(start);
+  }
 
-    function getRandomNonOverlappingSegment(duration, usedSegments) {
-      const possibleStarts = [];
+  if (safeStarts.length === 0) {
+    return Math.floor(Math.random() * (duration - 60)); // fallback random
+  }
 
-      for (let start = 0; start <= duration - 60; start += 1) {
-        let conflict = usedSegments.some(seg => Math.abs(seg - start) < 60);
-        if (!conflict) possibleStarts.push(start);
-      }
+  const randomIndex = Math.floor(Math.random() * safeStarts.length);
+  return safeStarts[randomIndex];
+}
 
-      if (possibleStarts.length === 0) {
-        return Math.random() * (duration - 60); // fallback (shouldn't happen)
-      }
+async function playNext() {
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
 
-      const randomIndex = Math.floor(Math.random() * possibleStarts.length);
-      return possibleStarts[randomIndex];
-    }
+  if (currentTour.length === 0) {
+    prepareTour();
+  }
 
-    function prepareTour() {
-      currentTourSongs = shuffleArray(musicFiles);
-    }
+  const file = currentTour.shift();
+  player.src = file;
+  await player.load();
 
-    async function playNext() {
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
+  player.onloadedmetadata = () => {
+    const duration = player.duration;
+    const fileName = file.split('/').pop();
 
-      if (currentTourSongs.length === 0) {
-        prepareTour(); // new tour
-      }
+    if (!playedSegments[fileName]) playedSegments[fileName] = [];
 
-      const file = currentTourSongs.shift();
-      player.src = file;
-      await player.load();
+    const startTime = getRandomNonOverlappingSegment(duration, playedSegments[fileName]);
+    playedSegments[fileName].push(startTime);
 
-      player.onloadedmetadata = () => {
-        const duration = player.duration;
-        const fileName = file.split('/').pop();
+    player.currentTime = startTime;
+    player.play().then(() => {
+      const musicNumber = parseInt(fileName.match(/\d+/)[0]);
+      nowPlaying.textContent = `Playing music#${musicNumber}`;
+      timer.textContent = `00:00 / 01:00`;
 
-        if (!playedSegments[fileName]) playedSegments[fileName] = [];
+      progressBar.style.width = "0%";
 
-        const startTime = getRandomNonOverlappingSegment(duration, playedSegments[fileName]);
-        playedSegments[fileName].push(startTime);
-
-        player.currentTime = startTime;
-        player.play().then(() => {
-          const musicNumber = parseInt(fileName.match(/\d+/)[0]);
-          nowPlaying.textContent = `Playing music#${musicNumber}`;
-          timer.textContent = `00:00 / 01:00`;
-
-          let elapsed = 0;
-          intervalId = setInterval(() => {
-            if (elapsed >= 60) {
-              clearInterval(intervalId);
-              player.pause();
-              playNext();
-            } else {
-              elapsed++;
-              timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
-            }
-          }, 1000);
-        }).catch(err => {
-          console.error('Error playing track:', err);
+      let elapsed = 0;
+      intervalId = setInterval(() => {
+        elapsed++;
+        if (elapsed >= 60) {
+          clearInterval(intervalId);
+          player.pause();
+          progressBar.style.width = "0%";
           playNext();
-        });
-      };
-    }
+        } else {
+          timer.textContent = `${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')} / 01:00`;
+          progressBar.style.width = `${(elapsed / 60) * 100}%`;
+        }
+      }, 1000);
+    }).catch(err => {
+      console.error('Play error:', err);
+      playNext();
+    });
+  };
+}
 
-    window.onload = () => {
-      prepareTour();
-    };
-  </script>
+window.onload = () => {
+  prepareTour();
+};
+</script>
 
 </body>
 </html>
