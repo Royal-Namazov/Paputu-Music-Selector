@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Paputu Music Selector</title>
-
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-
   <style>
     body {
       font-family: 'Poppins', sans-serif;
@@ -33,6 +31,7 @@
     #nowPlaying {
       margin-top: 30px;
       font-size: 22px;
+      color: #FFFFFF;
     }
     #timer {
       margin-top: 10px;
@@ -50,9 +49,12 @@
     }
     input[type="range"] {
       width: 200px;
+      -webkit-appearance: none;
       background: transparent;
     }
     input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
       width: 16px;
       height: 16px;
       background: #1DB954;
@@ -70,140 +72,126 @@
 
 <body>
 
-<h1>🎵 Paputu Music Selector 🎵</h1>
+  <h1>🎵 Paputu Music Selector 🎵</h1>
 
-<button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
+  <button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
 
-<p id="nowPlaying"></p>
-<div id="timer">00:00 / 01:00</div>
+  <p id="nowPlaying"></p>
+  <div id="timer">00:00 / 01:00</div>
 
-<div class="volume-control">
-  <label for="volumeSlider">🔊 Volume</label>
-  <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
-</div>
+  <div class="volume-control">
+    <label for="volumeSlider">🔊 Volume</label>
+    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
+  </div>
 
-<audio id="player" preload="auto" crossorigin="anonymous"></audio>
+  <audio id="player" preload="auto" crossorigin="anonymous"></audio>
 
-<script>
-const musicFiles = [
-  'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
-  'music/music5.mp3', 'music/music6.mp3', 'music/music7.mp3', 'music/music8.mp3',
-  'music/music9.mp3', 'music/music10.mp3', 'music/music11.mp3', 'music/music12.mp3',
-  'music/music13.mp3', 'music/music14.mp3', 'music/music15.mp3', 'music/music16.mp3',
-  'music/music17.mp3', 'music/music18.mp3', 'music/music19.mp3', 'music/music20.mp3',
-  'music/music21.mp3', 'music/music22.mp3', 'music/music23.mp3', 'music/music24.mp3',
-  'music/music25.mp3', 'music/music26.mp3', 'music/music27.mp3', 'music/music28.mp3',
-  'music/music29.mp3'
-];
+  <script>
+    const musicFiles = [
+      'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
+      'music/music5.mp3', 'music/music6.mp3', 'music/music7.mp3', 'music/music8.mp3',
+      'music/music9.mp3', 'music/music10.mp3', 'music/music11.mp3', 'music/music12.mp3',
+      'music/music13.mp3', 'music/music14.mp3', 'music/music15.mp3', 'music/music16.mp3',
+      'music/music17.mp3', 'music/music18.mp3', 'music/music19.mp3', 'music/music20.mp3',
+      'music/music21.mp3', 'music/music22.mp3', 'music/music23.mp3', 'music/music24.mp3',
+      'music/music25.mp3', 'music/music26.mp3', 'music/music27.mp3', 'music/music28.mp3',
+      'music/music29.mp3'
+    ];
 
-const player = document.getElementById('player');
-const nowPlaying = document.getElementById('nowPlaying');
-const timer = document.getElementById('timer');
-const volumeSlider = document.getElementById('volumeSlider');
+    const player = document.getElementById('player');
+    const nowPlaying = document.getElementById('nowPlaying');
+    const timer = document.getElementById('timer');
+    const volumeSlider = document.getElementById('volumeSlider');
 
-let currentMusic = null;
-let segmentStack = [];
-let intervalId = null;
+    let currentTourSongs = [];
+    let playedSegments = {}; // Store previous segments
+    let intervalId = null;
 
-volumeSlider.addEventListener('input', (e) => {
-  player.volume = e.target.value;
-});
+    player.volume = volumeSlider.value;
+    volumeSlider.addEventListener('input', (e) => {
+      player.volume = e.target.value;
+    });
 
-function shuffleArray(array) {
-  const copy = array.slice();
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function splitSegments(start, end) {
-  let mid = (start + end) / 2;
-  let segments = [];
-
-  // Push first 1-min
-  if (end - start >= 60) {
-    segments.push({start: start, end: start + 60});
-    segments.push({start: end - 60, end: end});
-  }
-
-  if (end - start > 120) {
-    segments = segments.concat(splitSegments(start + 60, end - 60));
-  }
-
-  return segments;
-}
-
-function prepareSegments(duration) {
-  return splitSegments(0, duration);
-}
-
-function loadNewMusic() {
-  const randomFile = musicFiles[Math.floor(Math.random() * musicFiles.length)];
-  player.src = randomFile;
-  player.load();
-  currentMusic = randomFile;
-}
-
-function playNext() {
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = null;
-  }
-
-  if (!currentMusic || segmentStack.length === 0) {
-    loadNewMusic();
-    player.onloadedmetadata = () => {
-      segmentStack = prepareSegments(player.duration);
-      startPlayingSegment();
-    };
-  } else {
-    startPlayingSegment();
-  }
-}
-
-function startPlayingSegment() {
-  if (segmentStack.length === 0) {
-    loadNewMusic();
-    player.onloadedmetadata = () => {
-      segmentStack = prepareSegments(player.duration);
-      startPlayingSegment();
-    };
-    return;
-  }
-
-  const segment = segmentStack.shift();
-  player.currentTime = segment.start;
-
-  player.play().then(() => {
-    const musicNumber = getMusicNumber(currentMusic);
-    nowPlaying.textContent = `Playing music#${musicNumber} (1-min segment)`;
-    timer.textContent = "00:00 / 01:00";
-
-    let elapsed = 0;
-    intervalId = setInterval(() => {
-      if (elapsed >= 60) {
-        clearInterval(intervalId);
-        player.pause();
-        playNext();
-      } else {
-        elapsed++;
-        timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
+    function shuffleArray(array) {
+      const copy = array.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
       }
-    }, 1000);
-  }).catch(err => {
-    console.error('Error playing track:', err);
-    playNext();
-  });
-}
+      return copy;
+    }
 
-function getMusicNumber(src) {
-  const fileName = src.split('/').pop(); // "music26.mp3"
-  const match = fileName.match(/music(\d+)\.mp3/);
-  return match ? match[1] : '?';
-}
-</script>
+    function getRandomNonOverlappingSegment(duration, usedSegments) {
+      const possibleStarts = [];
+
+      for (let start = 0; start <= duration - 60; start += 1) {
+        let conflict = usedSegments.some(seg => Math.abs(seg - start) < 60);
+        if (!conflict) possibleStarts.push(start);
+      }
+
+      if (possibleStarts.length === 0) {
+        return Math.random() * (duration - 60); // fallback (shouldn't happen)
+      }
+
+      const randomIndex = Math.floor(Math.random() * possibleStarts.length);
+      return possibleStarts[randomIndex];
+    }
+
+    function prepareTour() {
+      currentTourSongs = shuffleArray(musicFiles);
+    }
+
+    async function playNext() {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+
+      if (currentTourSongs.length === 0) {
+        prepareTour(); // new tour
+      }
+
+      const file = currentTourSongs.shift();
+      player.src = file;
+      await player.load();
+
+      player.onloadedmetadata = () => {
+        const duration = player.duration;
+        const fileName = file.split('/').pop();
+
+        if (!playedSegments[fileName]) playedSegments[fileName] = [];
+
+        const startTime = getRandomNonOverlappingSegment(duration, playedSegments[fileName]);
+        playedSegments[fileName].push(startTime);
+
+        player.currentTime = startTime;
+        player.play().then(() => {
+          const musicNumber = parseInt(fileName.match(/\d+/)[0]);
+          nowPlaying.textContent = `Playing music#${musicNumber}`;
+          timer.textContent = `00:00 / 01:00`;
+
+          let elapsed = 0;
+          intervalId = setInterval(() => {
+            if (elapsed >= 60) {
+              clearInterval(intervalId);
+              player.pause();
+              playNext();
+            } else {
+              elapsed++;
+              timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
+            }
+          }, 1000);
+        }).catch(err => {
+          console.error('Error playing track:', err);
+          playNext();
+        });
+      };
+    }
+
+    window.onload = () => {
+      prepareTour();
+    };
+  </script>
 
 </body>
 </html>
