@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Paputu Music Selector</title>
+  <title>Paputu Music Selector - Ultra Fast Mode</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      background: #121212;
-      color: #fff;
+      background: #d4f5e9; /* Light Green Background */
+      color: #121212;
       margin-top: 50px;
     }
     button {
@@ -18,6 +18,7 @@
       border: none;
       border-radius: 8px;
       cursor: pointer;
+      color: white;
     }
     button:hover {
       background-color: #17a74a;
@@ -135,8 +136,11 @@
         player.currentTime = startTime;
 
         player.play().then(() => {
-          const trackIndex = musicFiles.indexOf(preloader.src.split('/').pop());
-          nowPlaying.textContent = `Playing music#${trackIndex + 1} (Random 1-min Segment)`;
+          // Correctly find track number
+          const fileName = player.src.split('/').pop(); // "music1.mp3"
+          const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
+
+          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random 1-min Segment)`;
           timer.textContent = `00:00 / 01:00`;
 
           let elapsed = 0;
@@ -151,7 +155,7 @@
             }
           }, 1000);
 
-          prepareNextTracks(); // Keep preloading ahead
+          prepareNextTracks();
         }).catch(err => {
           console.error('Error playing track:', err);
           playNext();
@@ -167,3 +171,4 @@
 
 </body>
 </html>
+
