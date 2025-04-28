@@ -15,7 +15,6 @@
       margin: 0;
       padding: 40px;
     }
-
     button {
       background-color: #1DB954;
       border: none;
@@ -28,40 +27,33 @@
       transition: background 0.3s;
       margin-top: 20px;
     }
-
     button:hover {
       background-color: #1ed760;
     }
-
     #nowPlaying {
       margin-top: 30px;
       font-size: 22px;
       color: #FFFFFF;
     }
-
     #timer {
       margin-top: 10px;
       font-size: 18px;
       color: #B3B3B3;
     }
-
     .volume-control {
       margin-top: 40px;
     }
-
     .volume-control label {
       display: block;
       margin-bottom: 10px;
       font-size: 18px;
       color: #B3B3B3;
     }
-
     input[type="range"] {
       width: 200px;
       -webkit-appearance: none;
       background: transparent;
     }
-
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
@@ -72,13 +64,11 @@
       cursor: pointer;
       margin-top: -5px;
     }
-
     input[type="range"]::-webkit-slider-runnable-track {
       height: 5px;
       background: #535353;
       border-radius: 2px;
     }
-
     input[type="range"]::-moz-range-thumb {
       width: 16px;
       height: 16px;
@@ -87,7 +77,6 @@
       border-radius: 50%;
       cursor: pointer;
     }
-
     input[type="range"]::-moz-range-track {
       height: 5px;
       background: #535353;
@@ -129,14 +118,14 @@
     const timer = document.getElementById('timer');
     const volumeSlider = document.getElementById('volumeSlider');
 
-    let tourSegments = {}; 
-    let currentTourSongs = [];
-    let intervalId = null;
-
     player.volume = volumeSlider.value;
     volumeSlider.addEventListener('input', (e) => {
       player.volume = e.target.value;
     });
+
+    let shuffledMusicList = [];
+    let usedSegments = {}; // {musicIndex: [start1, start2, ...] }
+    let intervalId = null;
 
     function shuffleArray(array) {
       const copy = array.slice();
@@ -147,83 +136,70 @@
       return copy;
     }
 
-    function resetTour() {
-      currentTourSongs = shuffleArray(musicFiles.slice());
+    function getNewSegment(musicIndex, duration) {
+      if (!usedSegments[musicIndex]) usedSegments[musicIndex] = [];
+
+      let newStart;
+      let tries = 0;
+      do {
+        if (duration <= 60) {
+          newStart = 0;
+          break;
+        }
+        const maxStart = duration - 60;
+        newStart = Math.random() * maxStart;
+
+        var overlap = usedSegments[musicIndex].some(prev => Math.abs(prev - newStart) < 60);
+        tries++;
+
+      } while (overlap && tries < 100);
+
+      usedSegments[musicIndex].push(newStart);
+      return newStart;
     }
 
-    function getAvailableSegment(musicName, duration) {
-      if (!tourSegments[musicName]) {
-        tourSegments[musicName] = [];
-      }
-
-      // Divide song into non-overlapping 1-min blocks
-      const segments = [];
-      for (let start = 0; start + 60 <= duration; start += 60) {
-        segments.push(start);
-      }
-      // Remaining small part at the end is ignored
-
-      // Choose a segment that was not played in previous tours
-      const availableSegments = segments.filter(seg => !tourSegments[musicName].includes(seg));
-
-      if (availableSegments.length === 0) {
-        tourSegments[musicName] = []; // reset segments
-        return getAvailableSegment(musicName, duration);
-      }
-
-      const randomIndex = Math.floor(Math.random() * availableSegments.length);
-      const selected = availableSegments[randomIndex];
-      tourSegments[musicName].push(selected);
-      return selected;
+    function prepareNewTour() {
+      shuffledMusicList = shuffleArray([...Array(musicFiles.length).keys()]); // [0,1,2,...28]
     }
 
     function playNext() {
       if (intervalId) {
         clearInterval(intervalId);
-        intervalId = null;
       }
 
-      if (currentTourSongs.length === 0) {
-        resetTour();
+      if (shuffledMusicList.length === 0) {
+        prepareNewTour();
       }
 
-      const nextSong = currentTourSongs.shift();
-      player.src = nextSong;
+      const musicIndex = shuffledMusicList.shift();
+      const musicFile = musicFiles[musicIndex];
+      player.src = musicFile;
       player.load();
 
       player.onloadedmetadata = () => {
         const duration = player.duration;
-        if (duration < 60) {
-          playNext(); // skip too short
-          return;
-        }
+        const segmentStart = getNewSegment(musicIndex, duration);
 
-        const segmentStart = getAvailableSegment(nextSong, duration);
+        console.log(`🎵 Playing music#${musicIndex + 1} at ${segmentStart.toFixed(2)}s`);
 
         player.currentTime = segmentStart;
 
         player.play().then(() => {
-          const fileName = player.src.split('/').pop();
-          const index = musicFiles.findIndex(f => f.endsWith(fileName)) + 1;
-
-          nowPlaying.textContent = `Playing music#${index}`;
-
+          nowPlaying.textContent = `Playing music#${musicIndex + 1}`;
           timer.textContent = `00:00 / 01:00`;
 
           let elapsed = 0;
           intervalId = setInterval(() => {
-            elapsed++;
-            const min = String(Math.floor(elapsed / 60)).padStart(2, '0');
-            const sec = String(elapsed % 60).padStart(2, '0');
-            timer.textContent = `${min}:${sec} / 01:00`;
-
             if (elapsed >= 60) {
               clearInterval(intervalId);
-              intervalId = null;
               player.pause();
               playNext();
+            } else {
+              elapsed++;
+              timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
             }
           }, 1000);
+
         }).catch(err => {
           console.error('Error playing track:', err);
           playNext();
@@ -232,10 +208,11 @@
     }
 
     window.onload = () => {
-      resetTour();
+      prepareNewTour();
     };
   </script>
 
 </body>
 </html>
+
 
