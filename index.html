@@ -146,6 +146,7 @@
     let shuffledList = [];
     let preloadQueue = [];
     let intervalId = null;
+    let currentSegmentIndex = -1;
 
     player.volume = volumeSlider.value;
     volumeSlider.addEventListener('input', (e) => {
@@ -172,13 +173,12 @@
     }
 
     function getRandomSegment(duration) {
-      if (duration <= 60) return 0;
-      const maxStart = duration - 60;
+      const maxStart = Math.max(0, duration - 60);
       return Math.random() * maxStart;
     }
 
     function getTotalSegments(duration) {
-      return Math.floor(duration / 60); // Calculates total segments (rounded down)
+      return Math.floor(duration / 60); // Total segments (rounded down)
     }
 
     function playNext() {
@@ -222,7 +222,7 @@
                 player.pause();
                 playNext();
               } else {
-                player.currentTime = getRandomSegment(duration); // Jump to new random time for the next segment
+                player.currentTime = getRandomSegment(duration); // Jump to next random segment
                 nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment ${currentSegment} / ${totalSegments})`;
               }
             } else {
@@ -231,7 +231,7 @@
             }
           }, 1000);
 
-          prepareNextTracks();
+          prepareNextTracks(); // Load the next tracks in advance for smooth transition
         }).catch(err => {
           console.error('Error playing track:', err);
           playNext();
@@ -247,6 +247,7 @@
 
 </body>
 </html>
+
 
 
 
