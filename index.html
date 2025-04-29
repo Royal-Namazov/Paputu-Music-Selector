@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>INSTANT Music Player</title>
+  <title>Advanced Music Segment Player</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -26,22 +26,35 @@
     #nowPlaying {
       font-size: 24px;
       margin: 20px 0;
+      min-height: 60px;
     }
     #timer {
       font-family: monospace;
       font-size: 20px;
     }
+    #tourInfo {
+      font-size: 18px;
+      color: #1DB954;
+      margin: 10px 0;
+    }
     .volume-control {
       margin: 20px auto;
       width: 200px;
     }
+    .segment-info {
+      margin-top: 20px;
+      font-size: 16px;
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
-  <h1>⚡ INSTANT Music Player</h1>
+  <h1>🎵 Advanced Music Segment Player</h1>
+  <div id="tourInfo">Initializing...</div>
   <button id="playButton">NEXT SEGMENT</button>
-  <div id="nowPlaying">Loading...</div>
+  <div id="nowPlaying">Loading player...</div>
   <div id="timer">00:00 / 01:00</div>
+  <div class="segment-info" id="segmentInfo">Segment type: -</div>
   
   <div class="volume-control">
     <input type="range" id="volume" min="0" max="1" step="0.01" value="0.7">
@@ -52,16 +65,18 @@
   <audio id="player2"></audio>
   
   <script>
-    // ULTRA-OPTIMIZED MUSIC PLAYER
     // Configuration
     const SEGMENT_LENGTH = 60; // 1 minute segments
     const TRACK_COUNT = 29; // Number of music tracks
+    const SEGMENT_TYPES = ['first', 'middle-first', 'middle-last', 'last'];
     
     // DOM elements
     const playButton = document.getElementById('playButton');
     const nowPlaying = document.getElementById('nowPlaying');
     const timer = document.getElementById('timer');
     const volumeControl = document.getElementById('volume');
+    const tourInfo = document.getElementById('tourInfo');
+    const segmentInfo = document.getElementById('segmentInfo');
     
     // Audio elements
     const players = [
@@ -70,13 +85,19 @@
     ];
     
     // State
-    let currentPlayer = 0;
-    let nextPlayer = 1;
-    let currentTrack = 1;
-    let currentSegment = 1;
-    let totalSegments = 1;
-    let timerInterval;
-    let elapsed = 0;
+    const state = {
+      currentPlayer: 0,
+      nextPlayer: 1,
+      currentTrack: null,
+      currentSegment: 0,
+      totalSegments: 0,
+      elapsed: 0,
+      timerInterval: null,
+      currentTour: 0,
+      usedSegments: {}, // Track used segments per song
+      remainingTracks: [],
+      segmentHistory: {} // Track segment history per song
+    };
     
     // Initialize
     function init() {
@@ -86,80 +107,200 @@
         players.forEach(p => p.volume = volumeControl.value);
       });
       
-      // Preload first track
-      loadTrack(players[0], 1);
+      // Initialize segment history
+      for (let i = 1; i <= TRACK_COUNT; i++) {
+        state.segmentHistory[i] = [];
+      }
       
-      // When first player is ready, start playing
-      players[0].addEventListener('canplaythrough', () => {
-        startPlayback(players[0]);
-      }, { once: true });
+      // Start first tour
+      startNewTour();
       
       // Button handler
-      playButton.addEventListener('click', () => {
-        playNextSegment();
-      });
+      playButton.addEventListener('click', playNextSegment);
     }
     
-    // Core functions
-    function loadTrack(player, trackNumber) {
-      player.src = `music/music${trackNumber}.mp3`;
+    function startNewTour() {
+      state.currentTour++;
+      state.remainingTracks = shuffleArray([...Array(TRACK_COUNT).keys()].map(i => i + 1));
+      tourInfo.textContent = `Tour ${state.currentTour} of ${TRACK_COUNT} tracks`;
+      
+      // Preload first track
+      loadNextTrack();
+    }
+    
+    function loadNextTrack() {
+      if (state.remainingTracks.length === 0) {
+        startNewTour();
+        return;
+      }
+      
+      state.currentTrack = state.remainingTracks.pop();
+      state.currentSegment = 0;
+      
+      const player = players[state.nextPlayer];
+      player.src = `music/music${state.currentTrack}.mp3`;
       player.load();
+      
+      player.addEventListener('canplaythrough', () => {
+        state.totalSegments = Math.floor(player.duration / SEGMENT_LENGTH);
+        
+        // If this is the active player, start playback
+        if (player === players[state.currentPlayer]) {
+          playCurrentSegment();
+        }
+      }, { once: true });
+      
+      player.addEventListener('error', () => {
+        console.error(`Error loading track ${state.currentTrack}`);
+        loadNextTrack();
+      }, { once: true });
     }
     
-    function startPlayback(player) {
+    function playCurrentSegment() {
+      const player = players[state.currentPlayer];
       const duration = player.duration;
-      totalSegments = Math.floor(duration / SEGMENT_LENGTH);
-      currentSegment = 1;
       
-      // Start at random position
-      player.currentTime = Math.random() * (duration - SEGMENT_LENGTH);
-      player.play();
+      // Get an unused segment for this track
+      const segmentData = getNextSegment(state.currentTrack, duration);
+      state.currentSegment++;
       
-      updateUI();
+      // Play the segment
+      player.currentTime = segmentData.startTime;
+      player.play()
+        .then(() => {
+          updateUI(segmentData.type);
+          startTimer();
+          
+          // Preload next track in background
+          if (state.remainingTracks.length > 0) {
+            loadNextTrack();
+          }
+        })
+        .catch(err => {
+          console.error("Playback error:", err);
+          playNextSegment();
+        });
+    }
+    
+    function getNextSegment(trackNumber, duration) {
+      const availableSegments = [];
+      const totalPossible = Math.floor(duration / SEGMENT_LENGTH);
       
-      // Start timer
-      elapsed = 0;
-      clearInterval(timerInterval);
-      timerInterval = setInterval(updateTimer, 1000);
+      // First segment (0-60s)
+      if (!state.segmentHistory[trackNumber].includes('first')) {
+        availableSegments.push({
+          type: 'first',
+          startTime: 0
+        });
+      }
       
-      // Preload next track in background
-      const nextTrack = (currentTrack % TRACK_COUNT) + 1;
-      loadTrack(players[nextPlayer], nextTrack);
+      // Last segment (last 60s)
+      if (!state.segmentHistory[trackNumber].includes('last')) {
+        const lastStart = Math.max(0, duration - SEGMENT_LENGTH);
+        availableSegments.push({
+          type: 'last',
+          startTime: lastStart
+        });
+      }
+      
+      // Middle segments
+      if (totalPossible > 2) {
+        const middlePoint = Math.floor(duration / 2);
+        
+        // Middle-first (middle-60s)
+        if (!state.segmentHistory[trackNumber].includes('middle-first')) {
+          availableSegments.push({
+            type: 'middle-first',
+            startTime: Math.max(0, middlePoint - SEGMENT_LENGTH)
+          });
+        }
+        
+        // Middle-last (middle+60s)
+        if (!state.SegmentHistory[trackNumber].includes('middle-last')) {
+          availableSegments.push({
+            type: 'middle-last',
+            startTime: Math.min(middlePoint, duration - SEGMENT_LENGTH)
+          });
+        }
+      }
+      
+      // If no special segments left, pick a random unused one
+      if (availableSegments.length === 0) {
+        const allPossible = Math.floor(duration / SEGMENT_LENGTH);
+        const usedSegments = state.usedSegments[trackNumber] || new Set();
+        
+        let randomSegment;
+        do {
+          randomSegment = Math.floor(Math.random() * allPossible);
+        } while (usedSegments.has(randomSegment) && usedSegments.size < allPossible);
+        
+        if (!usedSegments.has(randomSegment)) {
+          usedSegments.add(randomSegment);
+          state.usedSegments[trackNumber] = usedSegments;
+          
+          return {
+            type: 'random',
+            startTime: randomSegment * SEGMENT_LENGTH
+          };
+        }
+      }
+      
+      // Pick a random available special segment
+      const segment = availableSegments[Math.floor(Math.random() * availableSegments.length)];
+      state.segmentHistory[trackNumber].push(segment.type);
+      return segment;
     }
     
     function playNextSegment() {
-      currentSegment++;
+      clearInterval(state.timerInterval);
       
-      if (currentSegment > totalSegments) {
-        // Switch to next track
-        switchPlayers();
-        currentTrack = (currentTrack % TRACK_COUNT) + 1;
-        startPlayback(players[currentPlayer]);
-      } else {
-        // Play next segment in current track
-        const player = players[currentPlayer];
-        const duration = player.duration;
-        player.currentTime = Math.random() * (duration - SEGMENT_LENGTH);
-        updateUI();
-        elapsed = 0;
-      }
-    }
-    
-    function switchPlayers() {
-      [currentPlayer, nextPlayer] = [nextPlayer, currentPlayer];
-    }
-    
-    function updateUI() {
-      nowPlaying.textContent = `Playing TRACK ${currentTrack} (Segment ${currentSegment}/${totalSegments})`;
-    }
-    
-    function updateTimer() {
-      elapsed++;
-      timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
+      const player = players[state.currentPlayer];
+      const duration = player.duration;
+      const currentTime = player.currentTime;
       
-      if (elapsed >= SEGMENT_LENGTH) {
-        playNextSegment();
+      // If we've played less than segment length, continue current segment
+      if (state.elapsed < SEGMENT_LENGTH && currentTime + (SEGMENT_LENGTH - state.elapsed) < duration) {
+        player.currentTime = currentTime + (SEGMENT_LENGTH - state.elapsed);
+        state.elapsed = 0;
+        startTimer();
+        return;
       }
+      
+      // Switch players for next track
+      [state.currentPlayer, state.nextPlayer] = [state.nextPlayer, state.currentPlayer];
+      playCurrentSegment();
+    }
+    
+    function startTimer() {
+      state.elapsed = 0;
+      clearInterval(state.timerInterval);
+      updateTimerDisplay();
+      
+      state.timerInterval = setInterval(() => {
+        state.elapsed++;
+        updateTimerDisplay();
+        
+        if (state.elapsed >= SEGMENT_LENGTH) {
+          playNextSegment();
+        }
+      }, 1000);
+    }
+    
+    function updateTimerDisplay() {
+      timer.textContent = `${String(Math.floor(state.elapsed / 60)).padStart(2, '0')}:${String(state.elapsed % 60).padStart(2, '0')} / 01:00`;
+    }
+    
+    function updateUI(segmentType) {
+      nowPlaying.textContent = `Playing TRACK ${state.currentTrack} (Segment ${state.currentSegment})`;
+      segmentInfo.textContent = `Segment type: ${segmentType}`;
+    }
+    
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
     }
     
     // Start the player
