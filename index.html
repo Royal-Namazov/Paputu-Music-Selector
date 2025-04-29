@@ -3,18 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <title>Paputu Music Selector</title>
+
+  <!-- Using Poppins (closest free version to Spotify's font) -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
   <style>
     body {
       font-family: 'Poppins', sans-serif;
-      background-color: #121212;
-      color: #FFFFFF;
+      background-color: #121212; /* Spotify dark background */
+      color: #FFFFFF; /* Light text */
       text-align: center;
       margin: 0;
       padding: 40px;
     }
+
     button {
-      background-color: #1DB954;
+      background-color: #1DB954; /* Spotify green */
       border: none;
       color: white;
       padding: 15px 40px;
@@ -25,32 +29,43 @@
       transition: background 0.3s;
       margin-top: 20px;
     }
+
     button:hover {
-      background-color: #1ed760;
+      background-color: #1ed760; /* Slightly lighter on hover */
     }
+
     #nowPlaying {
       margin-top: 30px;
       font-size: 22px;
+      color: #FFFFFF;
     }
+
     #timer {
       margin-top: 10px;
       font-size: 18px;
       color: #B3B3B3;
     }
+
     .volume-control {
       margin-top: 40px;
     }
+
     .volume-control label {
       display: block;
       margin-bottom: 10px;
       font-size: 18px;
       color: #B3B3B3;
     }
+
     input[type="range"] {
       width: 200px;
+      -webkit-appearance: none;
       background: transparent;
     }
+
     input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
       width: 16px;
       height: 16px;
       background: #1DB954;
@@ -58,97 +73,166 @@
       cursor: pointer;
       margin-top: -5px;
     }
+
     input[type="range"]::-webkit-slider-runnable-track {
+      height: 5px;
+      background: #535353;
+      border-radius: 2px;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: #1DB954;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-moz-range-track {
       height: 5px;
       background: #535353;
       border-radius: 2px;
     }
   </style>
 </head>
+
 <body>
+
   <h1>🎵 Paputu Music Selector 🎵</h1>
+
   <button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
+
   <p id="nowPlaying"></p>
   <div id="timer">00:00 / 01:00</div>
+
   <div class="volume-control">
     <label for="volumeSlider">🔊 Volume</label>
     <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
   </div>
+
+  <!-- Audio Elements -->
   <audio id="player" preload="auto" crossorigin="anonymous"></audio>
+  <audio id="preloader1" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader2" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader3" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader4" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+  <audio id="preloader5" preload="auto" style="display:none;" crossorigin="anonymous"></audio>
+
   <script>
-    const musicDurations = [
-      216, 351, 291, 287, 238, 173, 150, 121, 182, 205,
-      412, 225, 153, 557, 211, 189, 215, 210, 241, 488,
-      72, 291, 225, 1071, 884, 524, 1017, 237, 240
+    const musicFiles = [
+      'music/music1.mp3', 'music/music2.mp3', 'music/music3.mp3', 'music/music4.mp3',
+      'music/music5.mp3', 'music/music6.mp3', 'music/music7.mp3', 'music/music8.mp3',
+      'music/music9.mp3', 'music/music10.mp3', 'music/music11.mp3', 'music/music12.mp3',
+      'music/music13.mp3', 'music/music14.mp3', 'music/music15.mp3', 'music/music16.mp3',
+      'music/music17.mp3', 'music/music18.mp3', 'music/music19.mp3', 'music/music20.mp3',
+      'music/music21.mp3', 'music/music22.mp3', 'music/music23.mp3', 'music/music24.mp3',
+      'music/music25.mp3', 'music/music26.mp3', 'music/music27.mp3', 'music/music28.mp3',
+      'music/music29.mp3'
     ];
 
-    const musicFiles = musicDurations.map((_, i) => `music/music${i + 1}.mp3`);
     const player = document.getElementById('player');
+    const preloaders = [
+      document.getElementById('preloader1'),
+      document.getElementById('preloader2'),
+      document.getElementById('preloader3'),
+      document.getElementById('preloader4'),
+      document.getElementById('preloader5')
+    ];
     const nowPlaying = document.getElementById('nowPlaying');
     const timer = document.getElementById('timer');
     const volumeSlider = document.getElementById('volumeSlider');
 
+    let shuffledList = [];
+    let preloadQueue = [];
+    let intervalId = null;
+
     player.volume = volumeSlider.value;
-    volumeSlider.addEventListener('input', e => player.volume = e.target.value);
+    volumeSlider.addEventListener('input', (e) => {
+      player.volume = e.target.value;
+    });
 
-    const segmentsPerSong = musicDurations.map(d => Math.floor(d / 60));
-    const segmentMap = musicDurations.map((_, i) => []); // Holds used segment indices per song
-    let tourCounter = 0;
-
-    function getNextSegment(songIndex) {
-      const total = segmentsPerSong[songIndex];
-      const used = segmentMap[songIndex];
-      if (used.length >= total) return null;
-
-      let possible = [];
-      for (let i = 0; i < total; i++) if (!used.includes(i)) possible.push(i);
-      const choice = possible[Math.floor(Math.random() * possible.length)];
-      used.push(choice);
-      return choice;
+    function shuffleArray(array) {
+      const copy = array.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
     }
 
-    function resetTour() {
-      for (let i = 0; i < segmentMap.length; i++) segmentMap[i] = [];
-      tourCounter++;
+    function prepareNextTracks() {
+      while (preloadQueue.length < 5 && shuffledList.length > 0) {
+        const file = shuffledList.shift();
+        const preloader = preloaders[preloadQueue.length];
+        preloader.src = file;
+        preloader.load();
+        preloadQueue.push(preloader);
+      }
     }
 
-    async function playNext() {
-      if (segmentMap[0].length >= segmentsPerSong[0]) resetTour();
+    function getRandomSegment(duration) {
+      if (duration <= 60) return 0;
+      const maxStart = duration - 60;
+      return Math.random() * maxStart;
+    }
 
-      const availableIndexes = musicFiles.map((_, i) => i);
-      const randomSongIndex = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
-      const segmentIndex = getNextSegment(randomSongIndex);
-      if (segmentIndex === null) return playNext(); // Retry if all segments used
+    function playNext() {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
 
-      const file = musicFiles[randomSongIndex];
-      player.src = file;
+      if (preloadQueue.length === 0) {
+        shuffledList = shuffleArray(musicFiles);
+        prepareNextTracks();
+      }
+
+      const preloader = preloadQueue.shift();
+      player.src = preloader.src;
       player.load();
 
       player.onloadedmetadata = () => {
-        const start = segmentIndex * 60;
-        const end = start + 60;
-        player.currentTime = start;
-        player.play();
+        const duration = player.duration;
+        const startTime = getRandomSegment(duration);
 
-        nowPlaying.textContent = `Playing music#${randomSongIndex + 1} (Random Segment ${segmentIndex + 1}/${segmentsPerSong[randomSongIndex]})`;
+        player.currentTime = startTime;
 
-        let elapsed = 0;
-        timer.textContent = `00:00 / 01:00`;
+        player.play().then(() => {
+          const fileName = player.src.split('/').pop(); // music1.mp3
+          const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
 
-        const interval = setInterval(() => {
-          if (elapsed >= 60) {
-            clearInterval(interval);
-            player.pause();
-          } else {
-            elapsed++;
-            const min = String(Math.floor(elapsed / 60)).padStart(2, '0');
-            const sec = String(elapsed % 60).padStart(2, '0');
-            timer.textContent = `${min}:${sec} / 01:00`;
-          }
-        }, 1000);
+          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment 1/1)`;
+          timer.textContent = `00:00 / 01:00`;
+
+          const segmentStart = performance.now(); // Start the timer correctly
+          intervalId = setInterval(() => {
+            const now = performance.now();
+            const elapsed = Math.floor((now - segmentStart) / 1000);
+            if (elapsed >= 60) {
+              clearInterval(intervalId);
+              player.pause();
+              playNext();
+            } else {
+              const formatted = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
+              timer.textContent = `${formatted} / 01:00`;
+            }
+          }, 250); // smoother update rate
+
+          prepareNextTracks();
+        }).catch(err => {
+          console.error('Error playing track:', err);
+          playNext();
+        });
       };
     }
+
+    window.onload = () => {
+      shuffledList = shuffleArray(musicFiles);
+      prepareNextTracks();
+    };
   </script>
+
 </body>
 </html>
 
