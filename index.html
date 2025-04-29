@@ -98,8 +98,7 @@
 
   <script>
     const SEGMENT_LENGTH = 60;
-    const musicFiles = Array.from({length: 29}, (_, i) => `music/music${i + 1}.mp3`);
-
+    const musicFiles = Array.from({ length: 29 }, (_, i) => `music/music${i + 1}.mp3`);
     const audioPool = [document.getElementById("player1"), document.getElementById("player2")];
     const volumeSlider = document.getElementById("volumeSlider");
     const nowPlaying = document.getElementById("nowPlaying");
@@ -112,7 +111,8 @@
       totalSegments: 0,
       currentSegment: 0,
       intervalId: null,
-      volume: 0.7
+      volume: 0.7,
+      currentTourPool: [...musicFiles]
     };
 
     function formatTime(seconds) {
@@ -173,15 +173,19 @@
       nowPlaying.textContent = `TRACK #${trackNum} (Segment ${state.currentSegment}/${state.totalSegments})`;
     }
 
-    function getRandomTrack() {
-      const index = Math.floor(Math.random() * musicFiles.length);
-      return musicFiles[index];
+    function getNextRandomTrack() {
+      if (state.currentTourPool.length === 0) {
+        state.currentTourPool = [...musicFiles];
+      }
+      const randomIndex = Math.floor(Math.random() * state.currentTourPool.length);
+      const track = state.currentTourPool.splice(randomIndex, 1)[0];
+      return track;
     }
 
     document.getElementById("randomSongBtn").addEventListener("click", () => {
       loadingBar.style.display = "block";
       state.activePlayer = (state.activePlayer + 1) % 2;
-      const track = getRandomTrack();
+      const track = getNextRandomTrack();
       loadTrack(track, () => {
         loadingBar.style.display = "none";
         playSegment(1);
@@ -213,5 +217,3 @@
   </script>
 </body>
 </html>
-
-
