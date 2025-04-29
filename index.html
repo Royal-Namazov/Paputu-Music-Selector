@@ -202,22 +202,20 @@
           const fileName = player.src.split('/').pop(); // music1.mp3
           const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
 
-          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment 1/1)`;
+          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment)`;
           timer.textContent = `00:00 / 01:00`;
 
-          const segmentStart = performance.now(); // Start the timer correctly
+          let elapsed = 0;
           intervalId = setInterval(() => {
-            const now = performance.now();
-            const elapsed = Math.floor((now - segmentStart) / 1000);
             if (elapsed >= 60) {
               clearInterval(intervalId);
               player.pause();
               playNext();
             } else {
-              const formatted = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
-              timer.textContent = `${formatted} / 01:00`;
+              elapsed++;
+              timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
             }
-          }, 250); // smoother update rate
+          }, 1000);
 
           prepareNextTracks();
         }).catch(err => {
@@ -235,5 +233,6 @@
 
 </body>
 </html>
+
 
 
