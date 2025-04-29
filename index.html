@@ -177,6 +177,10 @@
       return Math.random() * maxStart;
     }
 
+    function getTotalSegments(duration) {
+      return Math.floor(duration / 60); // Calculates total segments (rounded down)
+    }
+
     function playNext() {
       if (intervalId) {
         clearInterval(intervalId);
@@ -194,6 +198,7 @@
 
       player.onloadedmetadata = () => {
         const duration = player.duration;
+        const totalSegments = getTotalSegments(duration);
         const startTime = getRandomSegment(duration);
 
         player.currentTime = startTime;
@@ -202,15 +207,24 @@
           const fileName = player.src.split('/').pop(); // music1.mp3
           const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
 
-          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment)`;
+          let currentSegment = 1; // Start at segment 1
+          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment ${currentSegment} / ${totalSegments})`;
           timer.textContent = `00:00 / 01:00`;
 
           let elapsed = 0;
           intervalId = setInterval(() => {
             if (elapsed >= 60) {
-              clearInterval(intervalId);
-              player.pause();
-              playNext();
+              currentSegment++;
+              elapsed = 0;
+
+              if (currentSegment > totalSegments) {
+                clearInterval(intervalId);
+                player.pause();
+                playNext();
+              } else {
+                player.currentTime = getRandomSegment(duration); // Jump to new random time for the next segment
+                nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment ${currentSegment} / ${totalSegments})`;
+              }
             } else {
               elapsed++;
               timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
@@ -233,7 +247,6 @@
 
 </body>
 </html>
-
 
 
 
