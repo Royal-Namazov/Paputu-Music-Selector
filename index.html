@@ -2,275 +2,188 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Perfect Segment Player</title>
+  <title>Paputu Music Selector</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Poppins', sans-serif;
       background-color: #121212;
-      color: white;
+      color: #FFFFFF;
       text-align: center;
       margin: 0;
       padding: 20px;
+      user-select: none;
     }
     button {
       background-color: #1DB954;
       border: none;
       color: white;
-      padding: 15px 30px;
+      padding: 15px 40px;
       font-size: 18px;
+      font-weight: bold;
       border-radius: 30px;
       cursor: pointer;
-      margin: 20px 0;
-      font-weight: bold;
+      transition: all 0.2s;
+      margin-top: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    button:hover {
+      background-color: #1ed760;
+      transform: scale(1.02);
+    }
+    button:active {
+      transform: scale(0.98);
     }
     #nowPlaying {
-      font-size: 24px;
-      margin: 20px 0;
-      min-height: 60px;
+      margin-top: 30px;
+      font-size: 22px;
+      color: #FFFFFF;
+      min-height: 30px;
     }
     #timer {
-      font-family: monospace;
-      font-size: 20px;
-    }
-    #tourInfo {
+      margin-top: 10px;
       font-size: 18px;
-      color: #1DB954;
-      margin: 10px 0;
+      color: #B3B3B3;
+      font-family: monospace;
     }
     .volume-control {
-      margin: 20px auto;
-      width: 200px;
+      margin-top: 30px;
     }
-    .segment-info {
-      margin-top: 20px;
-      font-size: 16px;
-      color: #aaa;
+    .volume-control label {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 18px;
+      color: #B3B3B3;
+    }
+    input[type="range"] {
+      width: 200px;
+      -webkit-appearance: none;
+      height: 5px;
+      background: #535353;
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #1DB954;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+    .loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: #1DB954;
+      transform-origin: left;
+      animation: loading 2s linear infinite;
+      z-index: 1000;
+    }
+    @keyframes loading {
+      0% { transform: scaleX(0); }
+      100% { transform: scaleX(1); }
     }
   </style>
 </head>
 <body>
-  <h1>Perfect Segment Player</h1>
-  <div id="tourInfo">Tour 1: 29 tracks remaining</div>
-  <button id="playButton">NEXT SEGMENT</button>
-  <div id="nowPlaying">Initializing player...</div>
+  <div id="loadingBar" class="loading" style="display:none;"></div>
+  
+  <h1>🎵 Paputu Music Selector 🎵</h1>
+  
+  <button id="playButton">▶️ INSTANT PLAY</button>
+  
+  <p id="nowPlaying">Ready to play...</p>
   <div id="timer">00:00 / 01:00</div>
-  <div class="segment-info" id="segmentInfo">Segment: -</div>
   
   <div class="volume-control">
-    <input type="range" id="volume" min="0" max="1" step="0.01" value="0.7">
+    <label for="volumeSlider">🔊 VOLUME</label>
+    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.7">
   </div>
 
-  <!-- Audio elements pool -->
-  <audio id="player1"></audio>
-  <audio id="player2"></audio>
-  
+  <!-- Audio Pool - More elements for better preloading -->
+  <audio id="player1" preload="auto" crossorigin="anonymous"></audio>
+  <audio id="player2" preload="auto" crossorigin="anonymous"></audio>
+  <audio id="preloader1" preload="auto" style="display:none;"></audio>
+  <audio id="preloader2" preload="auto" style="display:none;"></audio>
+  <audio id="preloader3" preload="auto" style="display:none;"></audio>
+  <audio id="preloader4" preload="auto" style="display:none;"></audio>
+  <audio id="preloader5" preload="auto" style="display:none;"></audio>
+
   <script>
     // Configuration
     const SEGMENT_LENGTH = 60; // 1 minute segments
-    const TRACK_COUNT = 29; // Number of music tracks
+    const PRELOAD_COUNT = 5; // Number of tracks to preload
+    const AUDIO_POOL_SIZE = 2; // Number of active players for crossfading
+    
+    // Music files (replace with your actual files)
+    const musicFiles = Array.from({length: 29}, (_, i) => `music/music${i+1}.mp3`);
     
     // DOM elements
     const playButton = document.getElementById('playButton');
     const nowPlaying = document.getElementById('nowPlaying');
     const timer = document.getElementById('timer');
-    const volumeControl = document.getElementById('volume');
-    const tourInfo = document.getElementById('tourInfo');
-    const segmentInfo = document.getElementById('segmentInfo');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const loadingBar = document.getElementById('loadingBar');
     
     // Audio elements
-    const players = [
-      document.getElementById('player1'),
-      document.getElementById('player2')
-    ];
+    const audioPool = Array.from({length: AUDIO_POOL_SIZE}, (_, i) => 
+      document.getElementById(`player${i+1}`));
+    const preloaders = Array.from({length: PRELOAD_COUNT}, (_, i) => 
+      document.getElementById(`preloader${i+1}`));
     
-    // State
-    const state = {
-      currentPlayer: 0,
-      nextPlayer: 1,
+    // State management
+    let state = {
+      shuffledTracks: [],
+      preloadQueue: [],
+      activePlayer: 0,
       currentTrack: null,
       currentSegment: 0,
-      elapsed: 0,
-      timerInterval: null,
-      currentTour: 1,
-      remainingTracks: [],
-      usedSegments: {},
-      segmentHistory: Array.from({length: TRACK_COUNT}, () => []),
-      segmentTypes: ['first', 'last', 'middle-first', 'middle-last']
+      totalSegments: 0,
+      intervalId: null,
+      isPlaying: false,
+      volume: 0.7
     };
     
     // Initialize
     function init() {
       // Set initial volume
-      players.forEach(p => p.volume = volumeControl.value);
-      volumeControl.addEventListener('input', () => {
-        players.forEach(p => p.volume = volumeControl.value);
+      audioPool.forEach(player => player.volume = state.volume);
+      volumeSlider.value = state.volume;
+      
+      // Volume control
+      volumeSlider.addEventListener('input', (e) => {
+        state.volume = e.target.value;
+        audioPool.forEach(player => player.volume = state.volume);
       });
       
-      // Initialize track order and segments
-      startNewTour();
-      
-      // Button handler
-      playButton.addEventListener('click', playNextSegment);
-      
-      // Start with first track
-      loadNextTrack();
-    }
-    
-    function startNewTour() {
-      state.currentTour++;
-      state.remainingTracks = shuffleArray([...Array(TRACK_COUNT).keys()].map(i => i + 1));
-      tourInfo.textContent = `Tour ${state.currentTour}: ${state.remainingTracks.length} tracks remaining`;
-    }
-    
-    function loadNextTrack() {
-      if (state.remainingTracks.length === 0) {
-        startNewTour();
-      }
-      
-      state.currentTrack = state.remainingTracks.pop();
-      state.currentSegment = 0;
-      
-      const player = players[state.nextPlayer];
-      player.src = `music/music${state.currentTrack}.mp3`;
-      player.load();
-      
-      player.addEventListener('canplaythrough', () => {
-        playCurrentSegment();
-      }, { once: true });
-    }
-    
-    function playCurrentSegment() {
-      const player = players[state.currentPlayer];
-      const duration = player.duration;
-      
-      // Get segment position based on tour rules
-      const segmentData = getSegmentData(state.currentTrack, duration);
-      state.currentSegment++;
-      
-      player.currentTime = segmentData.startTime;
-      player.play()
-        .then(() => {
-          updateUI(segmentData.type);
-          startTimer();
-          
-          // Preload next track if available
-          if (state.remainingTracks.length > 0) {
-            loadNextTrack();
-          }
-        })
-        .catch(err => {
-          console.error("Play error:", err);
-          playNextSegment();
-        });
-    }
-    
-    function getSegmentData(trackNumber, duration) {
-      const trackIndex = trackNumber - 1;
-      const segmentsAvailable = Math.floor(duration / SEGMENT_LENGTH);
-      
-      // First tour - random segment types
-      if (state.currentTour === 1) {
-        const type = state.segmentTypes[Math.floor(Math.random() * state.segmentTypes.length)];
-        
-        let startTime;
-        switch(type) {
-          case 'first':
-            startTime = 0;
-            break;
-          case 'last':
-            startTime = Math.max(0, duration - SEGMENT_LENGTH);
-            break;
-          case 'middle-first':
-            startTime = Math.max(0, duration/2 - SEGMENT_LENGTH);
-            break;
-          case 'middle-last':
-            startTime = Math.min(duration/2, duration - SEGMENT_LENGTH);
-            break;
-        }
-        
-        state.segmentHistory[trackIndex].push(type);
-        return { type, startTime };
-      }
-      
-      // Subsequent tours - use different segments than previous tours
-      const availableTypes = state.segmentTypes.filter(type => 
-        !state.segmentHistory[trackIndex].includes(type)
-      );
-      
-      if (availableTypes.length > 0) {
-        const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
-        
-        let startTime;
-        switch(type) {
-          case 'first':
-            startTime = 0;
-            break;
-          case 'last':
-            startTime = Math.max(0, duration - SEGMENT_LENGTH);
-            break;
-          case 'middle-first':
-            startTime = Math.max(0, duration/2 - SEGMENT_LENGTH);
-            break;
-          case 'middle-last':
-            startTime = Math.min(duration/2, duration - SEGMENT_LENGTH);
-            break;
-        }
-        
-        state.segmentHistory[trackIndex].push(type);
-        return { type, startTime };
-      }
-      
-      // If all special segments used, pick random unused segment
-      if (!state.usedSegments[trackIndex]) {
-        state.usedSegments[trackIndex] = new Set();
-      }
-      
-      let randomSegment;
-      do {
-        randomSegment = Math.floor(Math.random() * segmentsAvailable);
-      } while (state.usedSegments[trackIndex].has(randomSegment) && 
-               state.usedSegments[trackIndex].size < segmentsAvailable);
-      
-      state.usedSegments[trackIndex].add(randomSegment);
-      return {
-        type: 'random',
-        startTime: randomSegment * SEGMENT_LENGTH
-      };
-    }
-    
-    function playNextSegment() {
-      clearInterval(state.timerInterval);
-      
-      // Switch players for next segment/track
-      [state.currentPlayer, state.nextPlayer] = [state.nextPlayer, state.currentPlayer];
-      playCurrentSegment();
-    }
-    
-    function startTimer() {
-      state.elapsed = 0;
-      clearInterval(state.timerInterval);
-      updateTimerDisplay();
-      
-      state.timerInterval = setInterval(() => {
-        state.elapsed++;
-        updateTimerDisplay();
-        
-        if (state.elapsed >= SEGMENT_LENGTH) {
+      // Play button
+      playButton.addEventListener('click', () => {
+        if (!state.isPlaying) {
+          startPlayback();
+        } else {
           playNextSegment();
         }
-      }, 1000);
+      });
+      
+      // Shuffle tracks
+      state.shuffledTracks = shuffleArray([...musicFiles]);
+      
+      // Preload initial tracks
+      preloadTracks();
+      
+      // Start with first track ready
+      setTimeout(startPlayback, 300);
     }
     
-    function updateTimerDisplay() {
-      timer.textContent = `${String(Math.floor(state.elapsed / 60)).padStart(2, '0')}:${String(state.elapsed % 60).padStart(2, '0')} / 01:00`;
-    }
-    
-    function updateUI(segmentType) {
-      nowPlaying.textContent = `Playing TRACK ${state.currentTrack}`;
-      segmentInfo.textContent = `Segment: ${segmentType}`;
-      tourInfo.textContent = `Tour ${state.currentTour}: ${state.remainingTracks.length} tracks remaining`;
-    }
-    
+    // Core functions
     function shuffleArray(array) {
       for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -279,7 +192,129 @@
       return array;
     }
     
-    // Start the player
+    function preloadTracks() {
+      while (state.preloadQueue.length < PRELOAD_COUNT && state.shuffledTracks.length > 0) {
+        const track = state.shuffledTracks.pop();
+        const preloader = preloaders[state.preloadQueue.length];
+        
+        preloader.src = track;
+        preloader.load();
+        
+        state.preloadQueue.push({
+          element: preloader,
+          src: track,
+          ready: false
+        });
+        
+        preloader.addEventListener('canplaythrough', () => {
+          const item = state.preloadQueue.find(item => item.element === preloader);
+          if (item) item.ready = true;
+        }, {once: true});
+      }
+    }
+    
+    function getReadyTrack() {
+      // Find first ready track
+      const readyIndex = state.preloadQueue.findIndex(item => item.ready);
+      if (readyIndex >= 0) return state.preloadQueue.splice(readyIndex, 1)[0];
+      
+      // If none ready but we have tracks, return the first one
+      if (state.preloadQueue.length > 0) return state.preloadQueue.shift();
+      
+      // If queue is empty, reshuffle and try again
+      if (state.shuffledTracks.length === 0) {
+        state.shuffledTracks = shuffleArray([...musicFiles]);
+      }
+      preloadTracks();
+      return getReadyTrack();
+    }
+    
+    function startPlayback() {
+      state.isPlaying = true;
+      playButton.textContent = "⏭️ NEXT SEGMENT";
+      playNextSegment();
+    }
+    
+    function playNextSegment() {
+      loadingBar.style.display = 'block';
+      
+      // Clear previous interval
+      if (state.intervalId) {
+        clearInterval(state.intervalId);
+        state.intervalId = null;
+      }
+      
+      // Switch active player for seamless transition
+      state.activePlayer = (state.activePlayer + 1) % AUDIO_POOL_SIZE;
+      const player = audioPool[state.activePlayer];
+      
+      // Get next track
+      const nextTrack = getReadyTrack();
+      player.src = nextTrack.src;
+      
+      // Prepare the track
+      player.onloadedmetadata = () => {
+        const duration = player.duration;
+        state.currentTrack = nextTrack.src;
+        state.totalSegments = Math.floor(duration / SEGMENT_LENGTH);
+        state.currentSegment = 1;
+        
+        const startTime = getRandomStartTime(duration);
+        player.currentTime = startTime;
+        
+        player.play().then(() => {
+          loadingBar.style.display = 'none';
+          updateUI();
+          
+          // Start timer
+          let elapsed = 0;
+          state.intervalId = setInterval(() => {
+            elapsed++;
+            
+            if (elapsed >= SEGMENT_LENGTH) {
+              state.currentSegment++;
+              elapsed = 0;
+              
+              if (state.currentSegment > state.totalSegments) {
+                playNextSegment();
+              } else {
+                player.currentTime = getRandomStartTime(duration);
+                updateUI();
+              }
+            }
+            
+            timer.textContent = `${formatTime(elapsed)} / ${formatTime(SEGMENT_LENGTH)}`;
+          }, 1000);
+          
+          // Preload more tracks in background
+          preloadTracks();
+        }).catch(err => {
+          console.error("Playback error:", err);
+          playNextSegment();
+        });
+      };
+      
+      player.onerror = () => {
+        console.error("Error loading track");
+        playNextSegment();
+      };
+    }
+    
+    function getRandomStartTime(duration) {
+      const maxStart = Math.max(0, duration - SEGMENT_LENGTH - 1);
+      return Math.floor(Math.random() * maxStart);
+    }
+    
+    function formatTime(seconds) {
+      return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+    
+    function updateUI() {
+      const trackNum = musicFiles.indexOf(state.currentTrack) + 1;
+      nowPlaying.textContent = `Playing TRACK #${trackNum} (Segment ${state.currentSegment}/${state.totalSegments})`;
+    }
+    
+    // Start everything
     window.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
