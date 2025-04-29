@@ -13,6 +13,7 @@
       margin: 0;
       padding: 40px;
     }
+
     button {
       background-color: #1DB954;
       border: none;
@@ -25,33 +26,40 @@
       transition: background 0.3s;
       margin-top: 20px;
     }
+
     button:hover {
       background-color: #1ed760;
     }
+
     #nowPlaying {
       margin-top: 30px;
       font-size: 22px;
       color: #FFFFFF;
     }
+
     #timer {
       margin-top: 10px;
       font-size: 18px;
       color: #B3B3B3;
     }
+
     .volume-control {
       margin-top: 40px;
     }
+
     .volume-control label {
       display: block;
       margin-bottom: 10px;
       font-size: 18px;
       color: #B3B3B3;
     }
+
     input[type="range"] {
       width: 200px;
       -webkit-appearance: none;
       background: transparent;
     }
+
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
@@ -62,11 +70,13 @@
       cursor: pointer;
       margin-top: -5px;
     }
+
     input[type="range"]::-webkit-slider-runnable-track {
       height: 5px;
       background: #535353;
       border-radius: 2px;
     }
+
     input[type="range"]::-moz-range-thumb {
       width: 16px;
       height: 16px;
@@ -75,6 +85,7 @@
       border-radius: 50%;
       cursor: pointer;
     }
+
     input[type="range"]::-moz-range-track {
       height: 5px;
       background: #535353;
@@ -83,14 +94,10 @@
   </style>
 </head>
 <body>
-
   <h1>🎵 Paputu Music Selector 🎵</h1>
-
   <button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
-
   <p id="nowPlaying"></p>
   <div id="timer">00:00 / 01:00</div>
-
   <div class="volume-control">
     <label for="volumeSlider">🔊 Volume</label>
     <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
@@ -104,30 +111,30 @@
     const nowPlaying = document.getElementById('nowPlaying');
     const timer = document.getElementById('timer');
     const volumeSlider = document.getElementById('volumeSlider');
-
-    let segmentsMap = {}; // { 'music1.mp3': [startTimes] }
-    let segmentDuration = 60;
-    let songDurations = {};
-    let songIndex = 0;
-    let tour = 0;
+    const segmentDuration = 60;
 
     player.volume = volumeSlider.value;
-    volumeSlider.addEventListener('input', (e) => {
+    volumeSlider.addEventListener('input', e => {
       player.volume = e.target.value;
     });
 
-    async function getDuration(src) {
-      return new Promise(resolve => {
-        const a = new Audio(src);
-        a.addEventListener("loadedmetadata", () => {
-          resolve(a.duration);
-        });
-      });
+    const segmentMap = new Map();
+    const playedSegments = new Map();
+    let shuffledList = [];
+    let currentIndex = 0;
+    let intervalId = null;
+
+    function shuffleArray(array) {
+      const copy = [...array];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
     }
 
     function generateNonOverlappingSegments(duration) {
       const segments = [];
-
       function split(start, end) {
         if (end - start < segmentDuration) return;
         segments.push(start);
@@ -137,91 +144,72 @@
           split(mid + segmentDuration, end);
         }
       }
-
       split(0, duration);
-      return segments.slice(0, 15); // limit to 15 segments max
+      if (segments.length < 2 && duration >= segmentDuration * 2) {
+        segments.push(duration - segmentDuration);
+      }
+      return segments.slice(0, 15);
     }
 
-    async function init() {
-      for (const file of musicFiles) {
-        const duration = await getDuration(file);
-        songDurations[file] = duration;
-        segmentsMap[file] = generateNonOverlappingSegments(duration);
+    function prepareNextSong() {
+      if (currentIndex >= shuffledList.length) {
+        shuffledList = shuffleArray(musicFiles);
+        currentIndex = 0;
       }
-      shuffleAll();
-    }
-
-    function shuffleAll() {
-      for (const file in segmentsMap) {
-        segmentsMap[file] = shuffleArray(segmentsMap[file]);
-      }
-      musicFiles.sort(() => Math.random() - 0.5);
-    }
-
-    function shuffleArray(arr) {
-      const copy = arr.slice();
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-      }
-      return copy;
-    }
-
-    let elapsed = 0;
-    let intervalId;
-
-    function playNext() {
-      if (intervalId) clearInterval(intervalId);
-
-      if (songIndex >= musicFiles.length) {
-        songIndex = 0;
-        tour++;
-        shuffleAll();
-      }
-
-      const file = musicFiles[songIndex];
-      const segments = segmentsMap[file];
-
-      if (!segments || segments.length === 0) {
-        console.warn(`No segments left for ${file}, skipping.`);
-        songIndex++;
-        playNext();
-        return;
-      }
-
-      const startTime = segments.shift();
+      const file = shuffledList[currentIndex++];
       player.src = file;
-      player.currentTime = startTime;
+      player.load();
 
-      const musicNumber = file.match(/\d+/)[0];
-      const totalSegments = generateNonOverlappingSegments(songDurations[file]).length;
-      const segmentNumber = totalSegments - segments.length;
+      player.onloadedmetadata = () => {
+        const duration = player.duration;
+        const musicKey = file;
+        if (!segmentMap.has(musicKey)) {
+          segmentMap.set(musicKey, generateNonOverlappingSegments(duration));
+          playedSegments.set(musicKey, new Set());
+        }
 
-      player.play().then(() => {
-        nowPlaying.textContent = `Playing music#${musicNumber} (Segment ${segmentNumber}/${totalSegments})`;
-        elapsed = 0;
-        timer.textContent = "00:00 / 01:00";
+        const segments = segmentMap.get(musicKey);
+        const played = playedSegments.get(musicKey);
+        const available = segments.filter(s => !played.has(s));
+
+        if (available.length === 0) {
+          playedSegments.set(musicKey, new Set());
+          return prepareNextSong();
+        }
+
+        const startTime = available[Math.floor(Math.random() * available.length)];
+        played.add(startTime);
+
+        const segmentIndex = segments.indexOf(startTime) + 1;
+        const musicNumber = musicFiles.indexOf(file) + 1;
+        const totalSegments = segments.length;
+        nowPlaying.textContent = `Playing music#${musicNumber} (Random Segment ${segmentIndex}/${totalSegments})`;
+
+        player.currentTime = startTime;
+        player.play();
+
+        let elapsed = 0;
+        clearInterval(intervalId);
         intervalId = setInterval(() => {
-          elapsed++;
-          if (elapsed >= 60) {
+          if (elapsed >= segmentDuration) {
             clearInterval(intervalId);
             player.pause();
-            songIndex++;
-            playNext();
           } else {
-            const min = String(Math.floor(elapsed / 60)).padStart(2, '0');
-            const sec = String(elapsed % 60).padStart(2, '0');
-            timer.textContent = `${min}:${sec} / 01:00`;
+            elapsed++;
+            timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
           }
         }, 1000);
-      }).catch(err => {
-        console.error("Playback error:", err);
-        songIndex++;
-        playNext();
-      });
+      };
     }
 
-    window.onload = init;
+    function playNext() {
+      clearInterval(intervalId);
+      prepareNextSong();
+    }
+
+    window.onload = () => {
+      shuffledList = shuffleArray(musicFiles);
+    };
   </script>
 </body>
 </html>
