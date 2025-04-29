@@ -146,8 +146,7 @@
     let shuffledList = [];
     let preloadQueue = [];
     let intervalId = null;
-    let segmentStart = 0;
-    let segmentEnd = 60;
+    let currentSegmentIndex = -1;
 
     player.volume = volumeSlider.value;
     volumeSlider.addEventListener('input', (e) => {
@@ -174,9 +173,12 @@
     }
 
     function getRandomSegment(duration) {
-      if (duration <= 60) return 0;
-      const maxStart = duration - 60;
+      const maxStart = Math.max(0, duration - 60);
       return Math.random() * maxStart;
+    }
+
+    function getTotalSegments(duration) {
+      return Math.floor(duration / 60); // Total segments (rounded down)
     }
 
     function playNext() {
@@ -196,32 +198,40 @@
 
       player.onloadedmetadata = () => {
         const duration = player.duration;
+        const totalSegments = getTotalSegments(duration);
         const startTime = getRandomSegment(duration);
 
         player.currentTime = startTime;
-        segmentStart = startTime;
-        segmentEnd = startTime + 60;
 
         player.play().then(() => {
           const fileName = player.src.split('/').pop(); // music1.mp3
           const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
 
-          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment)`;
+          let currentSegment = 1; // Start at segment 1
+          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment ${currentSegment} / ${totalSegments})`;
           timer.textContent = `00:00 / 01:00`;
 
           let elapsed = 0;
           intervalId = setInterval(() => {
             if (elapsed >= 60) {
-              clearInterval(intervalId);
-              player.pause();
-              playNext();
+              currentSegment++;
+              elapsed = 0;
+
+              if (currentSegment > totalSegments) {
+                clearInterval(intervalId);
+                player.pause();
+                playNext();
+              } else {
+                player.currentTime = getRandomSegment(duration); // Jump to next random segment
+                nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment ${currentSegment} / ${totalSegments})`;
+              }
             } else {
               elapsed++;
               timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
             }
           }, 1000);
 
-          prepareNextTracks();
+          prepareNextTracks(); // Load the next tracks in advance for smooth transition
         }).catch(err => {
           console.error('Error playing track:', err);
           playNext();
@@ -237,6 +247,3 @@
 
 </body>
 </html>
-
-
-
