@@ -3,22 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <title>Paputu Music Selector</title>
-
-  <!-- Using Poppins (closest free version to Spotify's font) -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-
   <style>
     body {
       font-family: 'Poppins', sans-serif;
-      background-color: #121212; /* Spotify dark background */
-      color: #FFFFFF; /* Light text */
+      background-color: #121212;
+      color: #FFFFFF;
       text-align: center;
       margin: 0;
       padding: 40px;
     }
-
     button {
-      background-color: #1DB954; /* Spotify green */
+      background-color: #1DB954;
       border: none;
       color: white;
       padding: 15px 40px;
@@ -29,40 +25,33 @@
       transition: background 0.3s;
       margin-top: 20px;
     }
-
     button:hover {
-      background-color: #1ed760; /* Slightly lighter on hover */
+      background-color: #1ed760;
     }
-
     #nowPlaying {
       margin-top: 30px;
       font-size: 22px;
       color: #FFFFFF;
     }
-
     #timer {
       margin-top: 10px;
       font-size: 18px;
       color: #B3B3B3;
     }
-
     .volume-control {
       margin-top: 40px;
     }
-
     .volume-control label {
       display: block;
       margin-bottom: 10px;
       font-size: 18px;
       color: #B3B3B3;
     }
-
     input[type="range"] {
       width: 200px;
       -webkit-appearance: none;
       background: transparent;
     }
-
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
@@ -73,13 +62,11 @@
       cursor: pointer;
       margin-top: -5px;
     }
-
     input[type="range"]::-webkit-slider-runnable-track {
       height: 5px;
       background: #535353;
       border-radius: 2px;
     }
-
     input[type="range"]::-moz-range-thumb {
       width: 16px;
       height: 16px;
@@ -88,7 +75,6 @@
       border-radius: 50%;
       cursor: pointer;
     }
-
     input[type="range"]::-moz-range-track {
       height: 5px;
       background: #535353;
@@ -96,16 +82,11 @@
     }
   </style>
 </head>
-
 <body>
-
   <h1>🎵 Paputu Music Selector 🎵</h1>
-
   <button onclick="playNext()">▶️ Play Next 1-Min Segment</button>
-
   <p id="nowPlaying"></p>
   <div id="timer">00:00 / 01:00</div>
-
   <div class="volume-control">
     <label for="volumeSlider">🔊 Volume</label>
     <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
@@ -147,6 +128,8 @@
     let preloadQueue = [];
     let intervalId = null;
     let currentSegmentIndex = -1;
+    let currentTrackIndex = -1;
+    let currentTrackDuration = 0;
 
     player.volume = volumeSlider.value;
     volumeSlider.addEventListener('input', (e) => {
@@ -168,7 +151,15 @@
         const preloader = preloaders[preloadQueue.length];
         preloader.src = file;
         preloader.load();
-        preloadQueue.push(preloader);
+        preloadQueue.push({
+          element: preloader,
+          src: file,
+          ready: false
+        });
+        preloader.addEventListener('canplaythrough', () => {
+          const item = preloadQueue.find(item => item.element === preloader);
+          if (item) item.ready = true;
+        });
       }
     }
 
@@ -178,7 +169,7 @@
     }
 
     function getTotalSegments(duration) {
-      return Math.floor(duration / 60); // Total segments (rounded down)
+      return Math.floor(duration / 60);
     }
 
     function playNext() {
@@ -187,63 +178,77 @@
         intervalId = null;
       }
 
-      if (preloadQueue.length === 0) {
-        shuffledList = shuffleArray(musicFiles);
-        prepareNextTracks();
+      // Find the first ready track in the queue
+      let readyIndex = preloadQueue.findIndex(item => item.ready);
+      if (readyIndex === -1 && preloadQueue.length > 0) {
+        // If none are ready but we have tracks, just use the first one
+        readyIndex = 0;
       }
 
-      const preloader = preloadQueue.shift();
-      player.src = preloader.src;
-      player.load();
+      if (readyIndex === -1) {
+        // If queue is empty, reshuffle and prepare
+        if (shuffledList.length === 0) {
+          shuffledList = shuffleArray([...musicFiles]);
+        }
+        prepareNextTracks();
+        // Try again after a short delay
+        setTimeout(playNext, 100);
+        return;
+      }
+
+      // Get the next ready track
+      const nextTrack = preloadQueue.splice(readyIndex, 1)[0];
+      player.src = nextTrack.src;
+      
+      // Immediately start playing the current track while loading the next one
+      player.currentTime = 0;
+      player.play().catch(err => {
+        console.error('Play error:', err);
+        playNext();
+      });
 
       player.onloadedmetadata = () => {
-        const duration = player.duration;
-        const totalSegments = getTotalSegments(duration);
-        const startTime = getRandomSegment(duration);
-
+        currentTrackDuration = player.duration;
+        const totalSegments = getTotalSegments(currentTrackDuration);
+        const startTime = getRandomSegment(currentTrackDuration);
+        
         player.currentTime = startTime;
+        currentTrackIndex = musicFiles.indexOf(nextTrack.src);
+        
+        let currentSegment = 1;
+        nowPlaying.textContent = `Playing music#${currentTrackIndex + 1} (Random Segment ${currentSegment} / ${totalSegments})`;
+        timer.textContent = `00:00 / 01:00`;
 
-        player.play().then(() => {
-          const fileName = player.src.split('/').pop(); // music1.mp3
-          const matchingIndex = musicFiles.findIndex(f => f.endsWith(fileName));
+        let elapsed = 0;
+        intervalId = setInterval(() => {
+          if (elapsed >= 60) {
+            currentSegment++;
+            elapsed = 0;
 
-          let currentSegment = 1; // Start at segment 1
-          nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment ${currentSegment} / ${totalSegments})`;
-          timer.textContent = `00:00 / 01:00`;
-
-          let elapsed = 0;
-          intervalId = setInterval(() => {
-            if (elapsed >= 60) {
-              currentSegment++;
-              elapsed = 0;
-
-              if (currentSegment > totalSegments) {
-                clearInterval(intervalId);
-                player.pause();
-                playNext();
-              } else {
-                player.currentTime = getRandomSegment(duration); // Jump to next random segment
-                nowPlaying.textContent = `Playing music#${matchingIndex + 1} (Random Segment ${currentSegment} / ${totalSegments})`;
-              }
+            if (currentSegment > totalSegments) {
+              clearInterval(intervalId);
+              playNext();
             } else {
-              elapsed++;
-              timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
+              player.currentTime = getRandomSegment(currentTrackDuration);
+              nowPlaying.textContent = `Playing music#${currentTrackIndex + 1} (Random Segment ${currentSegment} / ${totalSegments})`;
             }
-          }, 1000);
-
-          prepareNextTracks(); // Load the next tracks in advance for smooth transition
-        }).catch(err => {
-          console.error('Error playing track:', err);
-          playNext();
-        });
+          } else {
+            elapsed++;
+            timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')} / 01:00`;
+          }
+        }, 1000);
       };
+
+      // Prepare the next tracks in background
+      prepareNextTracks();
     }
 
     window.onload = () => {
-      shuffledList = shuffleArray(musicFiles);
+      shuffledList = shuffleArray([...musicFiles]);
       prepareNextTracks();
+      // Start with the first track immediately
+      playNext();
     };
   </script>
-
 </body>
 </html>
