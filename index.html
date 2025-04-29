@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Advanced Music Segment Player</title>
+  <title>Perfect Segment Player</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -49,12 +49,12 @@
   </style>
 </head>
 <body>
-  <h1>🎵 Advanced Music Segment Player</h1>
-  <div id="tourInfo">Initializing...</div>
+  <h1>Perfect Segment Player</h1>
+  <div id="tourInfo">Tour 1: 29 tracks remaining</div>
   <button id="playButton">NEXT SEGMENT</button>
-  <div id="nowPlaying">Loading player...</div>
+  <div id="nowPlaying">Initializing player...</div>
   <div id="timer">00:00 / 01:00</div>
-  <div class="segment-info" id="segmentInfo">Segment type: -</div>
+  <div class="segment-info" id="segmentInfo">Segment: -</div>
   
   <div class="volume-control">
     <input type="range" id="volume" min="0" max="1" step="0.01" value="0.7">
@@ -68,7 +68,6 @@
     // Configuration
     const SEGMENT_LENGTH = 60; // 1 minute segments
     const TRACK_COUNT = 29; // Number of music tracks
-    const SEGMENT_TYPES = ['first', 'middle-first', 'middle-last', 'last'];
     
     // DOM elements
     const playButton = document.getElementById('playButton');
@@ -90,13 +89,13 @@
       nextPlayer: 1,
       currentTrack: null,
       currentSegment: 0,
-      totalSegments: 0,
       elapsed: 0,
       timerInterval: null,
-      currentTour: 0,
-      usedSegments: {}, // Track used segments per song
+      currentTour: 1,
       remainingTracks: [],
-      segmentHistory: {} // Track segment history per song
+      usedSegments: {},
+      segmentHistory: Array.from({length: TRACK_COUNT}, () => []),
+      segmentTypes: ['first', 'last', 'middle-first', 'middle-last']
     };
     
     // Initialize
@@ -107,31 +106,25 @@
         players.forEach(p => p.volume = volumeControl.value);
       });
       
-      // Initialize segment history
-      for (let i = 1; i <= TRACK_COUNT; i++) {
-        state.segmentHistory[i] = [];
-      }
-      
-      // Start first tour
+      // Initialize track order and segments
       startNewTour();
       
       // Button handler
       playButton.addEventListener('click', playNextSegment);
+      
+      // Start with first track
+      loadNextTrack();
     }
     
     function startNewTour() {
       state.currentTour++;
       state.remainingTracks = shuffleArray([...Array(TRACK_COUNT).keys()].map(i => i + 1));
-      tourInfo.textContent = `Tour ${state.currentTour} of ${TRACK_COUNT} tracks`;
-      
-      // Preload first track
-      loadNextTrack();
+      tourInfo.textContent = `Tour ${state.currentTour}: ${state.remainingTracks.length} tracks remaining`;
     }
     
     function loadNextTrack() {
       if (state.remainingTracks.length === 0) {
         startNewTour();
-        return;
       }
       
       state.currentTrack = state.remainingTracks.pop();
@@ -142,17 +135,7 @@
       player.load();
       
       player.addEventListener('canplaythrough', () => {
-        state.totalSegments = Math.floor(player.duration / SEGMENT_LENGTH);
-        
-        // If this is the active player, start playback
-        if (player === players[state.currentPlayer]) {
-          playCurrentSegment();
-        }
-      }, { once: true });
-      
-      player.addEventListener('error', () => {
-        console.error(`Error loading track ${state.currentTrack}`);
-        loadNextTrack();
+        playCurrentSegment();
       }, { once: true });
     }
     
@@ -160,113 +143,105 @@
       const player = players[state.currentPlayer];
       const duration = player.duration;
       
-      // Get an unused segment for this track
-      const segmentData = getNextSegment(state.currentTrack, duration);
+      // Get segment position based on tour rules
+      const segmentData = getSegmentData(state.currentTrack, duration);
       state.currentSegment++;
       
-      // Play the segment
       player.currentTime = segmentData.startTime;
       player.play()
         .then(() => {
           updateUI(segmentData.type);
           startTimer();
           
-          // Preload next track in background
+          // Preload next track if available
           if (state.remainingTracks.length > 0) {
             loadNextTrack();
           }
         })
         .catch(err => {
-          console.error("Playback error:", err);
+          console.error("Play error:", err);
           playNextSegment();
         });
     }
     
-    function getNextSegment(trackNumber, duration) {
-      const availableSegments = [];
-      const totalPossible = Math.floor(duration / SEGMENT_LENGTH);
+    function getSegmentData(trackNumber, duration) {
+      const trackIndex = trackNumber - 1;
+      const segmentsAvailable = Math.floor(duration / SEGMENT_LENGTH);
       
-      // First segment (0-60s)
-      if (!state.segmentHistory[trackNumber].includes('first')) {
-        availableSegments.push({
-          type: 'first',
-          startTime: 0
-        });
-      }
-      
-      // Last segment (last 60s)
-      if (!state.segmentHistory[trackNumber].includes('last')) {
-        const lastStart = Math.max(0, duration - SEGMENT_LENGTH);
-        availableSegments.push({
-          type: 'last',
-          startTime: lastStart
-        });
-      }
-      
-      // Middle segments
-      if (totalPossible > 2) {
-        const middlePoint = Math.floor(duration / 2);
+      // First tour - random segment types
+      if (state.currentTour === 1) {
+        const type = state.segmentTypes[Math.floor(Math.random() * state.segmentTypes.length)];
         
-        // Middle-first (middle-60s)
-        if (!state.segmentHistory[trackNumber].includes('middle-first')) {
-          availableSegments.push({
-            type: 'middle-first',
-            startTime: Math.max(0, middlePoint - SEGMENT_LENGTH)
-          });
+        let startTime;
+        switch(type) {
+          case 'first':
+            startTime = 0;
+            break;
+          case 'last':
+            startTime = Math.max(0, duration - SEGMENT_LENGTH);
+            break;
+          case 'middle-first':
+            startTime = Math.max(0, duration/2 - SEGMENT_LENGTH);
+            break;
+          case 'middle-last':
+            startTime = Math.min(duration/2, duration - SEGMENT_LENGTH);
+            break;
         }
         
-        // Middle-last (middle+60s)
-        if (!state.SegmentHistory[trackNumber].includes('middle-last')) {
-          availableSegments.push({
-            type: 'middle-last',
-            startTime: Math.min(middlePoint, duration - SEGMENT_LENGTH)
-          });
-        }
+        state.segmentHistory[trackIndex].push(type);
+        return { type, startTime };
       }
       
-      // If no special segments left, pick a random unused one
-      if (availableSegments.length === 0) {
-        const allPossible = Math.floor(duration / SEGMENT_LENGTH);
-        const usedSegments = state.usedSegments[trackNumber] || new Set();
+      // Subsequent tours - use different segments than previous tours
+      const availableTypes = state.segmentTypes.filter(type => 
+        !state.segmentHistory[trackIndex].includes(type)
+      );
+      
+      if (availableTypes.length > 0) {
+        const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
         
-        let randomSegment;
-        do {
-          randomSegment = Math.floor(Math.random() * allPossible);
-        } while (usedSegments.has(randomSegment) && usedSegments.size < allPossible);
-        
-        if (!usedSegments.has(randomSegment)) {
-          usedSegments.add(randomSegment);
-          state.usedSegments[trackNumber] = usedSegments;
-          
-          return {
-            type: 'random',
-            startTime: randomSegment * SEGMENT_LENGTH
-          };
+        let startTime;
+        switch(type) {
+          case 'first':
+            startTime = 0;
+            break;
+          case 'last':
+            startTime = Math.max(0, duration - SEGMENT_LENGTH);
+            break;
+          case 'middle-first':
+            startTime = Math.max(0, duration/2 - SEGMENT_LENGTH);
+            break;
+          case 'middle-last':
+            startTime = Math.min(duration/2, duration - SEGMENT_LENGTH);
+            break;
         }
+        
+        state.segmentHistory[trackIndex].push(type);
+        return { type, startTime };
       }
       
-      // Pick a random available special segment
-      const segment = availableSegments[Math.floor(Math.random() * availableSegments.length)];
-      state.segmentHistory[trackNumber].push(segment.type);
-      return segment;
+      // If all special segments used, pick random unused segment
+      if (!state.usedSegments[trackIndex]) {
+        state.usedSegments[trackIndex] = new Set();
+      }
+      
+      let randomSegment;
+      do {
+        randomSegment = Math.floor(Math.random() * segmentsAvailable);
+      } while (state.usedSegments[trackIndex].has(randomSegment) && 
+               state.usedSegments[trackIndex].size < segmentsAvailable);
+      
+      state.usedSegments[trackIndex].add(randomSegment);
+      return {
+        type: 'random',
+        startTime: randomSegment * SEGMENT_LENGTH
+      };
     }
     
     function playNextSegment() {
       clearInterval(state.timerInterval);
       
-      const player = players[state.currentPlayer];
-      const duration = player.duration;
-      const currentTime = player.currentTime;
-      
-      // If we've played less than segment length, continue current segment
-      if (state.elapsed < SEGMENT_LENGTH && currentTime + (SEGMENT_LENGTH - state.elapsed) < duration) {
-        player.currentTime = currentTime + (SEGMENT_LENGTH - state.elapsed);
-        state.elapsed = 0;
-        startTimer();
-        return;
-      }
-      
-      // Switch players for next track
+      // Switch players for next segment/track
       [state.currentPlayer, state.nextPlayer] = [state.nextPlayer, state.currentPlayer];
       playCurrentSegment();
     }
@@ -291,8 +266,9 @@
     }
     
     function updateUI(segmentType) {
-      nowPlaying.textContent = `Playing TRACK ${state.currentTrack} (Segment ${state.currentSegment})`;
-      segmentInfo.textContent = `Segment type: ${segmentType}`;
+      nowPlaying.textContent = `Playing TRACK ${state.currentTrack}`;
+      segmentInfo.textContent = `Segment: ${segmentType}`;
+      tourInfo.textContent = `Tour ${state.currentTour}: ${state.remainingTracks.length} tracks remaining`;
     }
     
     function shuffleArray(array) {
