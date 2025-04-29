@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Paputu Music Selector</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     body {
       font-family: 'Poppins', sans-serif;
@@ -18,13 +18,13 @@
       background-color: #1DB954;
       border: none;
       color: white;
-      padding: 15px 40px;
+      padding: 15px 25px;
       font-size: 18px;
       font-weight: bold;
       border-radius: 30px;
       cursor: pointer;
       transition: all 0.2s;
-      margin-top: 20px;
+      margin: 10px;
       box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     button:hover {
@@ -37,7 +37,6 @@
     #nowPlaying {
       margin-top: 30px;
       font-size: 22px;
-      color: #FFFFFF;
       min-height: 30px;
     }
     #timer {
@@ -57,24 +56,6 @@
     }
     input[type="range"] {
       width: 200px;
-      -webkit-appearance: none;
-      height: 5px;
-      background: #535353;
-      border-radius: 2px;
-      outline: none;
-    }
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 16px;
-      height: 16px;
-      background: #1DB954;
-      border-radius: 50%;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    input[type="range"]::-webkit-slider-thumb:hover {
-      transform: scale(1.2);
     }
     .loading {
       position: fixed;
@@ -98,203 +79,139 @@
 
   <h1>🎵 Paputu Music Selector 🎵</h1>
 
-  <button id="playButton">▶️ INSTANT PLAY</button>
+  <button id="randomSongBtn">▶️ RANDOM SONG</button>
+  <div>
+    <button id="prevSegmentBtn">⏮️</button>
+    <button id="nextSegmentBtn">⏭️</button>
+  </div>
 
   <p id="nowPlaying">Ready to play...</p>
   <div id="timer">00:00 / 01:00</div>
 
   <div class="volume-control">
     <label for="volumeSlider">🔊 VOLUME</label>
-    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.7">
+    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.7" />
   </div>
 
-  <!-- Audio Pool - More elements for better preloading -->
   <audio id="player1" preload="auto" crossorigin="anonymous"></audio>
   <audio id="player2" preload="auto" crossorigin="anonymous"></audio>
-  <audio id="preloader1" preload="auto" style="display:none;"></audio>
-  <audio id="preloader2" preload="auto" style="display:none;"></audio>
-  <audio id="preloader3" preload="auto" style="display:none;"></audio>
-  <audio id="preloader4" preload="auto" style="display:none;"></audio>
-  <audio id="preloader5" preload="auto" style="display:none;"></audio>
 
   <script>
     const SEGMENT_LENGTH = 60;
-    const PRELOAD_COUNT = 5;
-    const AUDIO_POOL_SIZE = 2;
+    const musicFiles = Array.from({length: 29}, (_, i) => `music/music${i + 1}.mp3`);
 
-    const musicFiles = Array.from({length: 29}, (_, i) => `music/music${i+1}.mp3`);
-
-    const playButton = document.getElementById('playButton');
-    const nowPlaying = document.getElementById('nowPlaying');
-    const timer = document.getElementById('timer');
-    const volumeSlider = document.getElementById('volumeSlider');
-    const loadingBar = document.getElementById('loadingBar');
-
-    const audioPool = Array.from({length: AUDIO_POOL_SIZE}, (_, i) =>
-      document.getElementById(`player${i+1}`));
-    const preloaders = Array.from({length: PRELOAD_COUNT}, (_, i) =>
-      document.getElementById(`preloader${i+1}`));
+    const audioPool = [document.getElementById("player1"), document.getElementById("player2")];
+    const volumeSlider = document.getElementById("volumeSlider");
+    const nowPlaying = document.getElementById("nowPlaying");
+    const timer = document.getElementById("timer");
+    const loadingBar = document.getElementById("loadingBar");
 
     let state = {
-      shuffledTracks: [],
-      preloadQueue: [],
       activePlayer: 0,
       currentTrack: null,
-      currentSegment: 0,
       totalSegments: 0,
+      currentSegment: 0,
       intervalId: null,
-      isPlaying: false,
       volume: 0.7
     };
 
-    function init() {
-      audioPool.forEach(player => player.volume = state.volume);
-      volumeSlider.value = state.volume;
+    function formatTime(seconds) {
+      return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+    }
 
-      volumeSlider.addEventListener('input', (e) => {
-        state.volume = e.target.value;
-        audioPool.forEach(player => player.volume = state.volume);
+    function stopAudio() {
+      audioPool.forEach(p => {
+        p.pause();
+        p.currentTime = 0;
       });
-
-      playButton.addEventListener('click', () => {
-        if (!state.isPlaying) {
-          startPlayback();
-        } else {
-          playNextSegment();
-        }
-      });
-
-      state.shuffledTracks = shuffleArray([...musicFiles]);
-      preloadTracks();
-      setTimeout(startPlayback, 300);
-    }
-
-    function shuffleArray(array) {
-      for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-      }
-      return array;
-    }
-
-    function preloadTracks() {
-      while (state.preloadQueue.length < PRELOAD_COUNT && state.shuffledTracks.length > 0) {
-        const track = state.shuffledTracks.pop();
-        const preloader = preloaders[state.preloadQueue.length];
-
-        preloader.src = track;
-        preloader.load();
-
-        state.preloadQueue.push({
-          element: preloader,
-          src: track,
-          ready: false
-        });
-
-        preloader.addEventListener('canplaythrough', () => {
-          const item = state.preloadQueue.find(item => item.element === preloader);
-          if (item) item.ready = true;
-        }, {once: true});
-      }
-    }
-
-    function getReadyTrack() {
-      const readyIndex = state.preloadQueue.findIndex(item => item.ready);
-      if (readyIndex >= 0) return state.preloadQueue.splice(readyIndex, 1)[0];
-      if (state.preloadQueue.length > 0) return state.preloadQueue.shift();
-      if (state.shuffledTracks.length === 0) {
-        state.shuffledTracks = shuffleArray([...musicFiles]);
-      }
-      preloadTracks();
-      return getReadyTrack();
-    }
-
-    function startPlayback() {
-      state.isPlaying = true;
-      playButton.textContent = "⏭️ NEXT SEGMENT";
-      playNextSegment();
-    }
-
-    function playNextSegment() {
-      loadingBar.style.display = 'block';
-
       if (state.intervalId) {
         clearInterval(state.intervalId);
         state.intervalId = null;
       }
+    }
 
-      state.activePlayer = (state.activePlayer + 1) % AUDIO_POOL_SIZE;
+    function loadTrack(trackSrc, callback) {
       const player = audioPool[state.activePlayer];
-
-      // ✅ Stop previous player to prevent overlap
-      const previousPlayer = audioPool[(state.activePlayer + 1) % AUDIO_POOL_SIZE];
-      previousPlayer.pause();
-      previousPlayer.currentTime = 0;
-
-      const nextTrack = getReadyTrack();
-      player.src = nextTrack.src;
-
+      player.src = trackSrc;
+      player.load();
       player.onloadedmetadata = () => {
-        const duration = player.duration;
-        state.currentTrack = nextTrack.src;
-        state.totalSegments = Math.floor(duration / SEGMENT_LENGTH);
+        state.currentTrack = trackSrc;
+        state.totalSegments = Math.floor(player.duration / SEGMENT_LENGTH);
         state.currentSegment = 1;
-
-        const startTime = getRandomStartTime(duration);
-        player.currentTime = startTime;
-
-        player.play().then(() => {
-          loadingBar.style.display = 'none';
-          updateUI();
-
-          let elapsed = 0;
-          state.intervalId = setInterval(() => {
-            elapsed++;
-
-            if (elapsed >= SEGMENT_LENGTH) {
-              state.currentSegment++;
-              elapsed = 0;
-
-              if (state.currentSegment > state.totalSegments) {
-                playNextSegment();
-              } else {
-                player.currentTime = getRandomStartTime(duration);
-                updateUI();
-              }
-            }
-
-            timer.textContent = `${formatTime(elapsed)} / ${formatTime(SEGMENT_LENGTH)}`;
-          }, 1000);
-
-          preloadTracks();
-        }).catch(err => {
-          console.error("Playback error:", err);
-          playNextSegment();
-        });
+        callback();
       };
-
       player.onerror = () => {
-        console.error("Error loading track");
-        playNextSegment();
+        console.error("Error loading track:", trackSrc);
       };
     }
 
-    function getRandomStartTime(duration) {
-      const maxStart = Math.max(0, duration - SEGMENT_LENGTH - 1);
-      return Math.floor(Math.random() * maxStart);
-    }
+    function playSegment(segmentNumber) {
+      stopAudio();
+      const player = audioPool[state.activePlayer];
+      const otherPlayer = audioPool[(state.activePlayer + 1) % 2];
+      otherPlayer.pause();
 
-    function formatTime(seconds) {
-      return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+      const startTime = SEGMENT_LENGTH * (segmentNumber - 1);
+      player.currentTime = startTime;
+
+      player.play().then(() => {
+        state.intervalId = setInterval(() => {
+          const elapsed = Math.floor(player.currentTime - startTime);
+          timer.textContent = `${formatTime(elapsed)} / ${formatTime(SEGMENT_LENGTH)}`;
+          if (elapsed >= SEGMENT_LENGTH) {
+            clearInterval(state.intervalId);
+            state.intervalId = null;
+            player.pause();
+          }
+        }, 1000);
+        updateUI();
+      }).catch(console.error);
     }
 
     function updateUI() {
       const trackNum = musicFiles.indexOf(state.currentTrack) + 1;
-      nowPlaying.textContent = `Playing TRACK #${trackNum} (Segment ${state.currentSegment}/${state.totalSegments})`;
+      nowPlaying.textContent = `TRACK #${trackNum} (Segment ${state.currentSegment}/${state.totalSegments})`;
     }
 
-    window.addEventListener('DOMContentLoaded', init);
+    function getRandomTrack() {
+      const index = Math.floor(Math.random() * musicFiles.length);
+      return musicFiles[index];
+    }
+
+    document.getElementById("randomSongBtn").addEventListener("click", () => {
+      loadingBar.style.display = "block";
+      state.activePlayer = (state.activePlayer + 1) % 2;
+      const track = getRandomTrack();
+      loadTrack(track, () => {
+        loadingBar.style.display = "none";
+        playSegment(1);
+      });
+    });
+
+    document.getElementById("nextSegmentBtn").addEventListener("click", () => {
+      if (state.currentTrack && state.currentSegment < state.totalSegments) {
+        state.currentSegment++;
+        playSegment(state.currentSegment);
+      }
+    });
+
+    document.getElementById("prevSegmentBtn").addEventListener("click", () => {
+      if (state.currentTrack && state.currentSegment > 1) {
+        state.currentSegment--;
+        playSegment(state.currentSegment);
+      }
+    });
+
+    volumeSlider.addEventListener("input", (e) => {
+      state.volume = e.target.value;
+      audioPool.forEach(p => p.volume = state.volume);
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+      audioPool.forEach(p => p.volume = state.volume);
+    });
   </script>
 </body>
 </html>
+
 
